@@ -1,0 +1,13 @@
+[package]
+name = "proof-of-duel-game"
+version = "0.1.0"
+edition = "2024"
+authors = ["Ruangyot Nanchaing"]
+license = "Apache-2.0"
+
+[dependencies]
+bevy = "0.16"
+bevy_aseprite_ultra = "0.6.1"
+bevy-fps-counter = "0.7.0"
+bevy_kira_audio = "0.23.0"
+rand = "0.9.1"
