@@ -30,6 +30,13 @@ impl ShootingStates {
     pub fn wrong_key_increment(&mut self) {
         self.wrong_count += 1;
     }
+
+    pub fn randomize_keys(&mut self) {
+        for data in self.data.iter_mut() {
+            data.key = KEY_POOL[rand::rng().random_range(0..KEY_POOL.len())];
+            data.is_pressed_correct = false;
+        }
+    }
 }
 
 #[derive(Component, Debug, Clone)]
@@ -47,6 +54,8 @@ pub struct ShootingStatesContainer {
 }
 
 impl Default for ShootingStatesContainer {
+    // Just initialize with random keys for each state
+    // But it's need to randomize keys later in every round
     fn default() -> Self {
         let states = [(); 5].map(|_| {
             let data = [(); 5].map(|_| ShootingData {
@@ -82,6 +91,10 @@ impl DuelRound {
 
     pub fn is_last_round(&self) -> bool {
         self.current_round > 5
+    }
+
+    pub fn reset(&mut self) {
+        self.current_round = 1;
     }
 }
 
@@ -233,7 +246,7 @@ pub fn spawn_new_shooting_keys(
     mut commands: Commands,
     shooting_keys_query: Query<Entity, With<ShootingKey>>,
     asset_server: Res<AssetServer>,
-    shooting_states_container: Res<ShootingStatesContainer>,
+    mut shooting_states_container: ResMut<ShootingStatesContainer>,
     duel_round: Res<DuelRound>,
 ) {
     for _ in reset_key_event.read() {
@@ -241,53 +254,53 @@ pub fn spawn_new_shooting_keys(
             commands.entity(entity).despawn();
         }
 
-        let current_state = shooting_states_container
+        if let Some(current_state) = shooting_states_container
             .states
-            .get(duel_round.current_round - 1);
+            .get_mut(duel_round.current_round - 1)
+        {
+            // Random new keys for the current state
+            current_state.randomize_keys();
 
-        if current_state.is_none() {
-            return;
-        }
+            for (i, data) in current_state.data.iter().enumerate() {
+                let pos = Vec3::new(
+                    (-GRID_SIZE * 5.) + (i as f32 * (7. + 64.)),
+                    -(GRID_SIZE * 1.),
+                    100.,
+                );
 
-        for (i, data) in current_state.unwrap().data.iter().enumerate() {
-            let pos = Vec3::new(
-                (-GRID_SIZE * 5.) + (i as f32 * (7. + 64.)),
-                -(GRID_SIZE * 1.),
-                100.,
-            );
-
-            commands
-                .spawn((
-                    ShootingKey,
-                    ShootingKeyIndex(i),
-                    AseAnimation {
-                        aseprite: asset_server.load("sprites/Key.aseprite"),
-                        animation: Animation::tag("idle").with_speed(1.),
-                    },
-                    Transform::from_translation(pos),
-                    Sprite::default(),
-                ))
-                .with_children(|parent| {
-                    let key_label = match data.key {
-                        KeyCode::KeyQ => "Q",
-                        KeyCode::KeyW => "W",
-                        KeyCode::KeyE => "E",
-                        KeyCode::KeyR => "R",
-                        _ => "",
-                    };
-
-                    parent.spawn((
-                        Text2d::new(key_label),
-                        TextColor(Color::WHITE),
-                        TextLayout::new_with_justify(JustifyText::Center),
-                        TextFont {
-                            font: asset_server.load("fonts/pixeloid_mono.ttf"),
-                            font_size: 36.,
-                            ..Default::default()
+                commands
+                    .spawn((
+                        ShootingKey,
+                        ShootingKeyIndex(i),
+                        AseAnimation {
+                            aseprite: asset_server.load("sprites/Key.aseprite"),
+                            animation: Animation::tag("idle").with_speed(1.),
                         },
-                        Transform::from_xyz(0., 0., 200.),
-                    ));
-                });
+                        Transform::from_translation(pos),
+                        Sprite::default(),
+                    ))
+                    .with_children(|parent| {
+                        let key_label = match data.key {
+                            KeyCode::KeyQ => "Q",
+                            KeyCode::KeyW => "W",
+                            KeyCode::KeyE => "E",
+                            KeyCode::KeyR => "R",
+                            _ => "",
+                        };
+
+                        parent.spawn((
+                            Text2d::new(key_label),
+                            TextColor(Color::WHITE),
+                            TextLayout::new_with_justify(JustifyText::Center),
+                            TextFont {
+                                font: asset_server.load("fonts/pixeloid_mono.ttf"),
+                                font_size: 36.,
+                                ..Default::default()
+                            },
+                            Transform::from_xyz(0., 0., 200.),
+                        ));
+                    });
+            }
         }
     }
 }

@@ -6,7 +6,7 @@ use bevy_aseprite_ultra::prelude::*;
 use bevy_fps_counter::FpsCounterPlugin;
 use proof_of_duel_game::{
     AUDIO_SCALE, GameState, cameras,
-    player::{self, PlayerHertsStatus, PlayerHit},
+    player::{self, CheckIsGameOverEvent, PlayerHertsStatus, PlayerHit},
     scene,
     shooting::{
         self, CheckShootingKeyEvent, DuelRound, ResetKeysEvent, ShootingEvent,
@@ -48,6 +48,7 @@ fn main() {
         .add_event::<ResetKeysEvent>()
         .add_event::<CheckShootingKeyEvent>()
         .add_event::<PlayerHit>()
+        .add_event::<CheckIsGameOverEvent>()
         .add_systems(OnEnter(GameState::InGame), cameras::game_camera_setup)
         .add_systems(OnEnter(GameState::InGame), scene::setup_background)
         .add_systems(OnEnter(GameState::InGame), player::setup_player_1)
@@ -61,6 +62,8 @@ fn main() {
                 shooting::spawn_new_shooting_keys,
                 player::player_1_shooting,
                 player::player_2_hearts_status_update,
+                player::player_1_hearts_status_update,
+                player::change_state_to_game_over,
             )
                 .run_if(in_state(GameState::InGame)),
         )
@@ -73,6 +76,18 @@ fn main() {
                 player::despawn_player_2,
                 shooting::despawn_shooting_keys,
                 cameras::despawn_game_camera,
+            ),
+        )
+        .add_systems(
+            OnEnter(GameState::GameOver),
+            cameras::game_over_camera_setup,
+        )
+        .add_systems(OnEnter(GameState::GameOver), scene::check_who_is_winner)
+        .add_systems(
+            OnExit(GameState::GameOver),
+            (
+                scene::despawn_game_over_ui,
+                cameras::despawn_game_over_camera,
             ),
         )
         .run();
