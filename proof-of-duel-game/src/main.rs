@@ -6,13 +6,17 @@ use bevy_aseprite_ultra::prelude::*;
 use bevy_fps_counter::FpsCounterPlugin;
 use proof_of_duel_game::{
     AUDIO_SCALE, GameState, cameras,
-    player::{self, CheckIsGameOverEvent, PlayerHertsStatus, PlayerHit},
+    player::{
+        self, CheckIsGameOverEvent, ChoosePlayerEvent, PlayerHertsStatus, PlayerHit,
+        PlayerSelection,
+    },
     scene,
     shooting::{
         self, CheckShootingKeyEvent, DuelRound, ResetKeysEvent, ShootingEvent,
         ShootingStatesContainer,
     },
     sounds,
+    ui::{self, main_menu::MainMenuState},
 };
 
 fn main() {
@@ -21,6 +25,7 @@ fn main() {
         .insert_resource(DuelRound::default())
         .insert_resource(ShootingStatesContainer::default())
         .insert_resource(PlayerHertsStatus::default())
+        .insert_resource(PlayerSelection::default())
         .add_plugins((DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
@@ -44,23 +49,91 @@ fn main() {
         .add_plugins(FpsCounterPlugin)
         .add_plugins(AsepriteUltraPlugin)
         .init_state::<GameState>()
+        .init_state::<MainMenuState>()
+        .add_event::<ChoosePlayerEvent>()
         .add_event::<ShootingEvent>()
         .add_event::<ResetKeysEvent>()
         .add_event::<CheckShootingKeyEvent>()
         .add_event::<PlayerHit>()
         .add_event::<CheckIsGameOverEvent>()
-        .add_systems(OnEnter(GameState::InGame), cameras::game_camera_setup)
-        .add_systems(OnEnter(GameState::InGame), scene::setup_background)
-        .add_systems(OnEnter(GameState::InGame), player::setup_player_1)
-        .add_systems(OnEnter(GameState::InGame), player::setup_player_2)
-        .add_systems(OnEnter(GameState::InGame), shooting::spawn_shooting_keys)
-        .add_systems(OnEnter(GameState::InGame), sounds::music::play_bg_music)
+        .add_systems(
+            OnEnter(GameState::MainMenu),
+            (
+                ui::main_menu::spawn_main_menu,
+                cameras::main_menu_camera_setup,
+            ),
+        )
+        .add_systems(
+            Update,
+            (
+                ui::main_menu::main_menu_button_pressed_handler,
+                ui::main_menu::main_menu_ui_interaction,
+            )
+                .run_if(in_state(GameState::MainMenu))
+                .run_if(in_state(MainMenuState::None)),
+        )
+        .add_systems(
+            OnExit(GameState::MainMenu),
+            (
+                ui::main_menu::despawn_main_menu,
+                cameras::despawn_main_menu_camera,
+            ),
+        )
+        .add_systems(
+            OnExit(MainMenuState::None),
+            (
+                ui::main_menu::despawn_main_menu,
+                cameras::despawn_main_menu_camera,
+            )
+                .chain(),
+        )
+        .add_systems(
+            OnEnter(MainMenuState::PlayGame),
+            (
+                cameras::main_menu_play_game_ui_camera_setup,
+                ui::main_menu::spawn_play_game_ui,
+            )
+                .chain(),
+        )
+        .add_systems(
+            Update,
+            (
+                ui::main_menu::play_game_button_pressed_handler,
+                ui::main_menu::play_game_ui_interaction,
+                player::choose_your_player,
+            )
+                .run_if(in_state(GameState::MainMenu))
+                .run_if(in_state(MainMenuState::PlayGame)),
+        )
+        .add_systems(
+            OnExit(MainMenuState::PlayGame),
+            (
+                cameras::despawn_main_menu_play_game_ui_camera,
+                ui::main_menu::despawn_play_game_ui,
+                cameras::main_menu_camera_setup,
+                ui::main_menu::spawn_main_menu,
+            )
+                .chain(),
+        )
+        .add_systems(
+            OnEnter(GameState::InGame),
+            (
+                cameras::game_camera_setup,
+                scene::setup_background,
+                player::setup_player_1,
+                player::setup_player_2,
+                shooting::spawn_shooting_keys,
+                sounds::music::play_bg_music,
+            )
+                .chain(),
+        )
         .add_systems(
             Update,
             (
                 shooting::shooting_key_input,
                 shooting::spawn_new_shooting_keys,
                 player::player_1_shooting,
+                player::player_2_shooting,
                 player::player_2_hearts_status_update,
                 player::player_1_hearts_status_update,
                 player::change_state_to_game_over,
@@ -70,6 +143,7 @@ fn main() {
         .add_systems(
             OnExit(GameState::InGame),
             (
+                sounds::gun_shot::clear_gun_shot_sound,
                 sounds::music::stop_playing_bg_music,
                 scene::despawn_background,
                 player::despawn_player_1,
@@ -80,13 +154,24 @@ fn main() {
         )
         .add_systems(
             OnEnter(GameState::GameOver),
-            cameras::game_over_camera_setup,
+            (
+                cameras::game_over_camera_setup,
+                ui::game_over::spawn_game_over_ui,
+            )
+                .chain(),
         )
-        .add_systems(OnEnter(GameState::GameOver), scene::check_who_is_winner)
+        .add_systems(
+            Update,
+            (
+                ui::game_over::game_over_button_pressed_handler,
+                ui::game_over::game_over_ui_interaction,
+            )
+                .run_if(in_state(GameState::GameOver)),
+        )
         .add_systems(
             OnExit(GameState::GameOver),
             (
-                scene::despawn_game_over_ui,
+                ui::game_over::despawn_game_over_ui,
                 cameras::despawn_game_over_camera,
             ),
         )

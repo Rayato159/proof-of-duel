@@ -4,7 +4,14 @@ use bevy_aseprite_ultra::prelude::*;
 use crate::{
     GRID_SIZE, GameState, MAP_SIZE_X,
     shooting::{DuelRound, ShootingEvent, ShootingStatesContainer},
+    sounds::gun_shot::GunShotSound,
 };
+
+#[derive(Event)]
+pub struct ChoosePlayerEvent(pub usize);
+
+#[derive(Resource, Default)]
+pub struct PlayerSelection(pub usize);
 
 #[derive(Component)]
 pub struct Player1 {
@@ -20,11 +27,15 @@ impl Player1 {
 #[derive(Component)]
 pub struct Player2 {
     pub wallet: String,
+    pub is_you: bool,
 }
 
 impl Player2 {
     pub fn new(wallet: String) -> Self {
-        Player2 { wallet }
+        Player2 {
+            wallet,
+            is_you: false,
+        }
     }
 }
 
@@ -54,6 +65,15 @@ pub struct PlayerHit(pub usize);
 
 #[derive(Event)]
 pub struct CheckIsGameOverEvent;
+
+pub fn choose_your_player(
+    mut choose_player_event: EventReader<ChoosePlayerEvent>,
+    mut player_selection: ResMut<PlayerSelection>,
+) {
+    for event in choose_player_event.read() {
+        player_selection.0 = event.0;
+    }
+}
 
 pub fn setup_player_1(mut commands: Commands, asset_server: Res<AssetServer>) {
     let aseprite = asset_server.load("sprites/Player1.aseprite");
@@ -185,6 +205,7 @@ pub fn player_1_shooting(
                     }
 
                     commands.spawn((
+                        GunShotSound,
                         AudioPlayer::new(asset_server.load("sounds/GunShot.ogg")),
                         PlaybackSettings::ONCE
                             .with_spatial(true)
@@ -199,13 +220,54 @@ pub fn player_1_shooting(
     }
 }
 
+pub fn player_2_shooting(
+    mut commands: Commands,
+    mut shooting_event: EventReader<ShootingEvent>,
+    shooting_states_container: Res<ShootingStatesContainer>,
+    duel_round: Res<DuelRound>,
+    asset_server: Res<AssetServer>,
+    mut player_2_query: Query<&mut AseAnimation, With<Player2>>,
+    mut player_hit_event: EventWriter<PlayerHit>,
+) {
+    for event in shooting_event.read() {
+        if event.player == 2 {
+            let shooting_state = shooting_states_container
+                .states
+                .get(duel_round.current_round - 2);
+
+            if let Some(state) = shooting_state {
+                if state.data.iter().filter(|d| d.is_pressed_correct).count() == 5 {
+                    for mut player_2_animation in player_2_query.iter_mut() {
+                        player_2_animation.animation = Animation::tag("Firing")
+                            .with_speed(1.)
+                            .with_repeat(AnimationRepeat::Count(0))
+                            .with_then("idle", AnimationRepeat::Loop)
+                            .with_speed(1.);
+                    }
+
+                    commands.spawn((
+                        GunShotSound,
+                        AudioPlayer::new(asset_server.load("sounds/GunShot.ogg")),
+                        PlaybackSettings::ONCE
+                            .with_spatial(true)
+                            .with_volume(Volume::Linear(1.0)),
+                        Transform::from_xyz(-GRID_SIZE * 5., 0., 1000.),
+                    ));
+
+                    player_hit_event.write(PlayerHit(1));
+                }
+            }
+        }
+    }
+}
+
 pub fn player_1_hearts_status_update(
     mut player_hit_event: EventReader<PlayerHit>,
     mut player_herts_status: ResMut<PlayerHertsStatus>,
     mut player_1_query: Query<&mut AseAnimation, With<Player1>>,
     mut player_1_heart_query: Query<
         (&mut AseAnimation, &Playter1Heart),
-        (With<Playter2Heart>, Without<Player1>),
+        (With<Playter1Heart>, Without<Player1>),
     >,
     mut check_is_game_over_event: EventWriter<CheckIsGameOverEvent>,
 ) {

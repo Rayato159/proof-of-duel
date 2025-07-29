@@ -1,4 +1,4 @@
-use crate::{GRID_SIZE, shooting::keycode::ALL_KEYS};
+use crate::{GRID_SIZE, player::PlayerSelection, shooting::keycode::ALL_KEYS};
 use bevy::prelude::*;
 use bevy_aseprite_ultra::prelude::*;
 use rand::prelude::*;
@@ -184,6 +184,7 @@ pub fn shooting_key_input(
     mut duel_round: ResMut<DuelRound>,
     mut reset_key_event: EventWriter<ResetKeysEvent>,
     mut shooting_event: EventWriter<ShootingEvent>,
+    player_slecrion: Res<PlayerSelection>,
 ) {
     if duel_round.is_last_round() {
         return;
@@ -230,9 +231,9 @@ pub fn shooting_key_input(
             if state.is_last_key() {
                 duel_round.next_round();
 
-                // Trigger the shooting event for the player
-                // Assuming player 1 is the shooter
-                shooting_event.write(ShootingEvent { player: 1 });
+                shooting_event.write(ShootingEvent {
+                    player: player_slecrion.0,
+                });
 
                 state.reset_current_key_index();
                 reset_key_event.write(ResetKeysEvent);

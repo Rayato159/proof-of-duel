@@ -7,8 +7,8 @@ pub const AUDIO_SCALE: f32 = 1. / 100.0;
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GameState {
-    MainMenu,
     #[default]
+    MainMenu,
     InGame,
     GameOver,
 }
@@ -18,3 +18,4 @@ pub mod player;
 pub mod scene;
 pub mod shooting;
 pub mod sounds;
+pub mod ui;

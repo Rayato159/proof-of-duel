@@ -1,10 +1,50 @@
 use bevy::prelude::*;
 
 #[derive(Component)]
+pub struct MainMenuCamera;
+
+#[derive(Component)]
+pub struct MainMenuPlayGameUICamera;
+
+#[derive(Component)]
 pub struct GameCamera;
 
 #[derive(Component)]
 pub struct GameOverUICamera;
+
+pub fn main_menu_camera_setup(mut commands: Commands) {
+    commands.spawn((
+        MainMenuCamera,
+        Camera2d,
+        Transform::from_xyz(0.0, 0.0, 1000.),
+    ));
+}
+
+pub fn despawn_main_menu_camera(
+    mut commands: Commands,
+    query: Query<Entity, With<MainMenuCamera>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+pub fn main_menu_play_game_ui_camera_setup(mut commands: Commands) {
+    commands.spawn((
+        MainMenuPlayGameUICamera,
+        Camera2d,
+        Transform::from_xyz(0.0, 0.0, 1000.),
+    ));
+}
+
+pub fn despawn_main_menu_play_game_ui_camera(
+    mut commands: Commands,
+    query: Query<Entity, With<MainMenuPlayGameUICamera>>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
 
 pub fn game_camera_setup(mut commands: Commands) {
     commands.spawn((GameCamera, Camera2d, Transform::from_xyz(0.0, 0.0, 1000.)));
