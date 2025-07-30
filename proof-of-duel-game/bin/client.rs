@@ -4,11 +4,11 @@ use bevy::{
 };
 use bevy_aseprite_ultra::prelude::*;
 use bevy_fps_counter::FpsCounterPlugin;
+use bevy_quinnet::client::QuinnetClientPlugin;
 use proof_of_duel_game::{
-    AUDIO_SCALE, GameState, cameras,
+    AUDIO_SCALE, GameState, cameras, connection,
     player::{
-        self, CheckIsGameOverEvent, ChoosePlayerEvent, PlayerHertsStatus, PlayerHit,
-        PlayerSelection,
+        self, CheckIsGameOverEvent, PlayerHertsStatus, PlayerHit, PlayerSelection, PlayersCounting,
     },
     scene,
     shooting::{
@@ -16,7 +16,10 @@ use proof_of_duel_game::{
         ShootingStatesContainer,
     },
     sounds,
-    ui::{self, main_menu::MainMenuState},
+    ui::{
+        self,
+        main_menu::{GameStartTimer, MainMenuState},
+    },
 };
 
 fn main() {
@@ -26,6 +29,8 @@ fn main() {
         .insert_resource(ShootingStatesContainer::default())
         .insert_resource(PlayerHertsStatus::default())
         .insert_resource(PlayerSelection::default())
+        .insert_resource(GameStartTimer::new(3.0))
+        .insert_resource(PlayersCounting::default())
         .add_plugins((DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
@@ -48,9 +53,9 @@ fn main() {
             }),))
         .add_plugins(FpsCounterPlugin)
         .add_plugins(AsepriteUltraPlugin)
+        .add_plugins(QuinnetClientPlugin::default())
         .init_state::<GameState>()
         .init_state::<MainMenuState>()
-        .add_event::<ChoosePlayerEvent>()
         .add_event::<ShootingEvent>()
         .add_event::<ResetKeysEvent>()
         .add_event::<CheckShootingKeyEvent>()
@@ -88,28 +93,34 @@ fn main() {
                 .chain(),
         )
         .add_systems(
-            OnEnter(MainMenuState::PlayGame),
+            OnEnter(MainMenuState::PlayNow),
             (
-                cameras::main_menu_play_game_ui_camera_setup,
-                ui::main_menu::spawn_play_game_ui,
+                cameras::main_menu_play_now_ui_camera_setup,
+                ui::main_menu::spawn_play_now_ui,
+                connection::open_connection,
             )
                 .chain(),
         )
         .add_systems(
             Update,
             (
-                ui::main_menu::play_game_button_pressed_handler,
-                ui::main_menu::play_game_ui_interaction,
-                player::choose_your_player,
+                ui::main_menu::play_now_button_pressed_handler,
+                ui::main_menu::play_now_ui_interaction,
+                ui::main_menu::update_play_now_text,
+                ui::main_menu::update_game_start_text,
             )
                 .run_if(in_state(GameState::MainMenu))
-                .run_if(in_state(MainMenuState::PlayGame)),
+                .run_if(in_state(MainMenuState::PlayNow)),
         )
         .add_systems(
-            OnExit(MainMenuState::PlayGame),
+            Update,
+            connection::handle_server_messages.run_if(in_state(MainMenuState::PlayNow)),
+        )
+        .add_systems(
+            OnExit(MainMenuState::PlayNow),
             (
-                cameras::despawn_main_menu_play_game_ui_camera,
-                ui::main_menu::despawn_play_game_ui,
+                cameras::despawn_main_menu_play_now_ui_camera,
+                ui::main_menu::despawn_play_now_ui,
                 cameras::main_menu_camera_setup,
                 ui::main_menu::spawn_main_menu,
             )
@@ -120,8 +131,7 @@ fn main() {
             (
                 cameras::game_camera_setup,
                 scene::setup_background,
-                player::setup_player_1,
-                player::setup_player_2,
+                player::setup_player,
                 shooting::spawn_shooting_keys,
                 sounds::music::play_bg_music,
             )
@@ -132,10 +142,8 @@ fn main() {
             (
                 shooting::shooting_key_input,
                 shooting::spawn_new_shooting_keys,
-                player::player_1_shooting,
-                player::player_2_shooting,
-                player::player_2_hearts_status_update,
-                player::player_1_hearts_status_update,
+                player::player_shooting,
+                player::player_hearts_status_update,
                 player::change_state_to_game_over,
             )
                 .run_if(in_state(GameState::InGame)),
@@ -146,8 +154,7 @@ fn main() {
                 sounds::gun_shot::clear_gun_shot_sound,
                 sounds::music::stop_playing_bg_music,
                 scene::despawn_background,
-                player::despawn_player_1,
-                player::despawn_player_2,
+                player::despawn_player,
                 shooting::despawn_shooting_keys,
                 cameras::despawn_game_camera,
             ),

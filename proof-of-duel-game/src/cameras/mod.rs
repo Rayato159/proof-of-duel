@@ -4,7 +4,7 @@ use bevy::prelude::*;
 pub struct MainMenuCamera;
 
 #[derive(Component)]
-pub struct MainMenuPlayGameUICamera;
+pub struct MainMenuHostingLobbyUICamera;
 
 #[derive(Component)]
 pub struct GameCamera;
@@ -29,17 +29,17 @@ pub fn despawn_main_menu_camera(
     }
 }
 
-pub fn main_menu_play_game_ui_camera_setup(mut commands: Commands) {
+pub fn main_menu_play_now_ui_camera_setup(mut commands: Commands) {
     commands.spawn((
-        MainMenuPlayGameUICamera,
+        MainMenuHostingLobbyUICamera,
         Camera2d,
         Transform::from_xyz(0.0, 0.0, 1000.),
     ));
 }
 
-pub fn despawn_main_menu_play_game_ui_camera(
+pub fn despawn_main_menu_play_now_ui_camera(
     mut commands: Commands,
-    query: Query<Entity, With<MainMenuPlayGameUICamera>>,
+    query: Query<Entity, With<MainMenuHostingLobbyUICamera>>,
 ) {
     for entity in query.iter() {
         commands.entity(entity).despawn();

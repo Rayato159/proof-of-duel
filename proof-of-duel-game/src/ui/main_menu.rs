@@ -1,23 +1,45 @@
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
-use crate::{GameState, player::ChoosePlayerEvent};
+use crate::{GameState, player::PlayersCounting};
 
 #[derive(Component)]
 pub struct MainMenuUI;
 
 #[derive(Component)]
-pub struct PlayGameUI;
+pub struct PlayNowUI;
+
+#[derive(Component)]
+pub struct PlayNowText;
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MainMenuState {
     #[default]
     None,
-    PlayGame,
+    PlayNow,
     JoinGame,
 }
 
-const MAIN_MENU_LIST: [&str; 3] = ["Play Game", "Join Game", "Quit"];
-const PLAYER_SELECTION_LIST: [&str; 3] = ["Player 1", "Player 2", "Back"];
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayersCount(pub usize);
+
+#[derive(Resource)]
+pub struct GameStartTimer {
+    pub is_running: bool,
+    pub timer: Timer,
+}
+
+impl GameStartTimer {
+    pub fn new(secs: f32) -> Self {
+        Self {
+            is_running: false,
+            timer: Timer::from_seconds(secs, TimerMode::Once),
+        }
+    }
+}
+
+const MAIN_MENU_LIST: [&str; 3] = ["Hosting Lobby", "Join Game", "Quit"];
+const WAITING_LIST: [&str; 1] = ["Back"];
 
 pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("fonts/pixeloid_mono.ttf");
@@ -119,8 +141,8 @@ pub fn main_menu_button_pressed_handler(
         }
 
         match name.as_str() {
-            "Play Game" => {
-                next_main_menu_state.set(MainMenuState::PlayGame);
+            "Hosting Lobby" => {
+                next_main_menu_state.set(MainMenuState::PlayNow);
             }
             "Join Game" => {
                 next_game_state.set(GameState::InGame);
@@ -158,13 +180,13 @@ pub fn despawn_main_menu(
     }
 }
 
-pub fn spawn_play_game_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
+pub fn spawn_play_now_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("fonts/pixeloid_mono.ttf");
     let font_bold = asset_server.load("fonts/pixeloid_mono_bold.ttf");
 
     commands
         .spawn((
-            PlayGameUI,
+            PlayNowUI,
             Node {
                 width: Val::Percent(100.),
                 height: Val::Percent(100.),
@@ -189,7 +211,8 @@ pub fn spawn_play_game_ui(mut commands: Commands, asset_server: Res<AssetServer>
                 })
                 .with_children(|parent| {
                     parent.spawn((
-                        Text::new("Select Player"),
+                        PlayNowText,
+                        Text::new("Waiting for players..."),
                         TextColor(Color::WHITE),
                         TextLayout::new_with_justify(JustifyText::Center),
                         TextFont {
@@ -201,7 +224,7 @@ pub fn spawn_play_game_ui(mut commands: Commands, asset_server: Res<AssetServer>
                 });
         })
         .with_children(|parent| {
-            PLAYER_SELECTION_LIST.iter().for_each(|label| {
+            WAITING_LIST.iter().for_each(|label| {
                 parent
                     .spawn((
                         Name::new(label.to_string()),
@@ -247,7 +270,38 @@ pub fn spawn_play_game_ui(mut commands: Commands, asset_server: Res<AssetServer>
         });
 }
 
-pub fn play_game_ui_interaction(
+pub fn update_play_now_text(
+    mut text_query: Query<&mut Text, With<PlayNowText>>,
+    player_counting: Res<PlayersCounting>,
+) {
+    for mut text in text_query.iter_mut() {
+        *text = Text::new(format!("Waiting for players: {}/2", player_counting.0));
+    }
+}
+
+pub fn update_game_start_text(
+    time: Res<Time>,
+    mut countdown: ResMut<GameStartTimer>,
+    mut text_query: Query<&mut Text, With<PlayNowText>>,
+    mut next_main_menu_state: ResMut<NextState<MainMenuState>>,
+    mut next_game_state: ResMut<NextState<GameState>>,
+) {
+    if countdown.is_running {
+        countdown.timer.tick(time.delta());
+
+        for mut text in text_query.iter_mut() {
+            let remaining = countdown.timer.remaining_secs().ceil();
+            *text = Text::new(format!("Game starts in: {}", remaining));
+        }
+
+        if countdown.timer.finished() {
+            next_main_menu_state.set(MainMenuState::None);
+            next_game_state.set(GameState::InGame);
+        }
+    }
+}
+
+pub fn play_now_ui_interaction(
     mut button_query: Query<(&Interaction, &mut BackgroundColor), Changed<Interaction>>,
 ) {
     for (interaction, mut color) in button_query.iter_mut() {
@@ -265,11 +319,10 @@ pub fn play_game_ui_interaction(
     }
 }
 
-pub fn play_game_button_pressed_handler(
+pub fn play_now_button_pressed_handler(
     button_query: Query<(&Interaction, &Name), Changed<Interaction>>,
     mut next_game_state: ResMut<NextState<GameState>>,
     mut next_main_menu_state: ResMut<NextState<MainMenuState>>,
-    mut choose_player_event: EventWriter<ChoosePlayerEvent>,
 ) {
     for (interaction, name) in button_query.iter() {
         if *interaction != Interaction::Pressed {
@@ -277,16 +330,6 @@ pub fn play_game_button_pressed_handler(
         }
 
         match name.as_str() {
-            "Player 1" => {
-                choose_player_event.write(ChoosePlayerEvent(1));
-                next_main_menu_state.set(MainMenuState::None);
-                next_game_state.set(GameState::InGame);
-            }
-            "Player 2" => {
-                choose_player_event.write(ChoosePlayerEvent(2));
-                next_main_menu_state.set(MainMenuState::None);
-                next_game_state.set(GameState::InGame);
-            }
             "Back" => {
                 next_main_menu_state.set(MainMenuState::None);
                 next_game_state.set(GameState::MainMenu);
@@ -296,11 +339,11 @@ pub fn play_game_button_pressed_handler(
     }
 }
 
-pub fn despawn_play_game_ui(
+pub fn despawn_play_now_ui(
     mut commands: Commands,
-    play_game_ui_query: Query<Entity, With<PlayGameUI>>,
+    play_now_ui_query: Query<Entity, With<PlayNowUI>>,
 ) {
-    for entity in play_game_ui_query.iter() {
+    for entity in play_now_ui_query.iter() {
         commands.entity(entity).despawn();
     }
 }
