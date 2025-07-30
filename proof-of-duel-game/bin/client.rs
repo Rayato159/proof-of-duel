@@ -6,7 +6,8 @@ use bevy_aseprite_ultra::prelude::*;
 use bevy_fps_counter::FpsCounterPlugin;
 use bevy_quinnet::client::QuinnetClientPlugin;
 use proof_of_duel_game::{
-    AUDIO_SCALE, GameState, cameras, connection,
+    AUDIO_SCALE, GameState, cameras,
+    connection::{self, ConnectionState},
     player::{
         self, CheckIsGameOverEvent, PlayerHertsStatus, PlayerHit, PlayerSelection, PlayersCounting,
     },
@@ -56,6 +57,7 @@ fn main() {
         .add_plugins(QuinnetClientPlugin::default())
         .init_state::<GameState>()
         .init_state::<MainMenuState>()
+        .init_state::<ConnectionState>()
         .add_event::<ShootingEvent>()
         .add_event::<ResetKeysEvent>()
         .add_event::<CheckShootingKeyEvent>()
@@ -98,8 +100,17 @@ fn main() {
                 cameras::main_menu_play_now_ui_camera_setup,
                 ui::main_menu::spawn_play_now_ui,
                 connection::open_connection,
+                connection::to_connection_state,
             )
                 .chain(),
+        )
+        .add_systems(
+            Update,
+            connection::handle_server_messages.run_if(in_state(ConnectionState::Connected)),
+        )
+        .add_systems(
+            OnExit(ConnectionState::Connected),
+            connection::to_disconnected_state,
         )
         .add_systems(
             Update,
@@ -111,10 +122,6 @@ fn main() {
             )
                 .run_if(in_state(GameState::MainMenu))
                 .run_if(in_state(MainMenuState::PlayNow)),
-        )
-        .add_systems(
-            Update,
-            connection::handle_server_messages.run_if(in_state(MainMenuState::PlayNow)),
         )
         .add_systems(
             OnExit(MainMenuState::PlayNow),
@@ -131,7 +138,8 @@ fn main() {
             (
                 cameras::game_camera_setup,
                 scene::setup_background,
-                player::setup_player,
+                player::setup_player_1,
+                player::setup_player_2,
                 shooting::spawn_shooting_keys,
                 sounds::music::play_bg_music,
             )

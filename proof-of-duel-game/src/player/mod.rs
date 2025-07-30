@@ -10,6 +10,13 @@ use crate::{
 #[derive(Resource, Default)]
 pub struct PlayerSelection(pub usize, pub u64);
 
+impl PlayerSelection {
+    pub fn reset(&mut self) {
+        self.0 = 0;
+        self.1 = 0;
+    }
+}
+
 #[derive(Resource, Default)]
 pub struct PlayersCounting(pub usize);
 
@@ -54,106 +61,102 @@ pub struct PlayerHit(pub usize);
 #[derive(Event)]
 pub struct CheckIsGameOverEvent;
 
-pub fn setup_player(
+pub fn setup_player_1(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     player_selection: Res<PlayerSelection>,
 ) {
-    if player_selection.0 == 1 && player_selection.1 != 0 {
-        let aseprite = asset_server.load("sprites/Player1.aseprite");
+    let aseprite = asset_server.load("sprites/Player1.aseprite");
 
-        commands
-            .spawn((
-                Player::new(player_selection.1, 1, "".to_string()),
-                AseAnimation {
-                    aseprite,
-                    animation: Animation::tag("idle").with_speed(1.),
-                },
-                Sprite::default(),
-                Transform::from_xyz(
-                    -((GRID_SIZE * MAP_SIZE_X as f32) / 2. - (GRID_SIZE * 5.)),
-                    -(GRID_SIZE * 5.),
-                    100.,
-                ),
-            ))
-            .with_children(|parent| {
-                for i in 0..5 {
-                    parent.spawn((
-                        PlayterHeart(1, i),
-                        AseAnimation {
-                            aseprite: asset_server.load("sprites/Heart.aseprite"),
-                            animation: Animation::tag("Full").with_speed(1.),
-                        },
-                        Sprite::default(),
-                        Transform::from_xyz(
-                            -GRID_SIZE * 2.5 + (i as f32 * 32.),
-                            GRID_SIZE * 3.,
-                            100.,
-                        ),
-                    ));
-                }
-            })
-            .with_children(|parent| {
+    commands
+        .spawn((
+            Player::new(player_selection.1, 1, "".to_string()),
+            AseAnimation {
+                aseprite,
+                animation: Animation::tag("idle").with_speed(1.),
+            },
+            Sprite::default(),
+            Transform::from_xyz(
+                -((GRID_SIZE * MAP_SIZE_X as f32) / 2. - (GRID_SIZE * 5.)),
+                -(GRID_SIZE * 5.),
+                100.,
+            ),
+        ))
+        .with_children(|parent| {
+            for i in 0..5 {
                 parent.spawn((
-                    Text2d::new("Player 1"),
-                    TextColor(Color::WHITE),
-                    TextLayout::new_with_justify(JustifyText::Center),
-                    TextFont {
-                        font: asset_server.load("fonts/pixeloid_mono.ttf"),
-                        font_size: 28.,
-                        ..Default::default()
+                    PlayterHeart(1, i),
+                    AseAnimation {
+                        aseprite: asset_server.load("sprites/Heart.aseprite"),
+                        animation: Animation::tag("Full").with_speed(1.),
                     },
-                    Transform::from_xyz(-GRID_SIZE * 0.5, GRID_SIZE * 4.5, 100.0),
+                    Sprite::default(),
+                    Transform::from_xyz(-GRID_SIZE * 2.5 + (i as f32 * 32.), GRID_SIZE * 3., 100.),
                 ));
-            });
-    } else if player_selection.0 == 2 {
-        let aseprite = asset_server.load("sprites/Player2.aseprite");
+            }
+        })
+        .with_children(|parent| {
+            parent.spawn((
+                Text2d::new("Player 1"),
+                TextColor(Color::WHITE),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextFont {
+                    font: asset_server.load("fonts/pixeloid_mono.ttf"),
+                    font_size: 28.,
+                    ..Default::default()
+                },
+                Transform::from_xyz(-GRID_SIZE * 0.5, GRID_SIZE * 4.5, 100.0),
+            ));
+        });
+}
 
-        commands
-            .spawn((
-                Player::new(player_selection.1, 2, "".to_string()),
-                AseAnimation {
-                    aseprite,
-                    animation: Animation::tag("idle").with_speed(1.),
-                },
-                Sprite::default(),
-                Transform::from_xyz(
-                    (GRID_SIZE * MAP_SIZE_X as f32) / 2. - (GRID_SIZE * 5.),
-                    -(GRID_SIZE * 5.),
-                    100.,
-                ),
-            ))
-            .with_children(|parent| {
-                for i in 0..5 {
-                    parent.spawn((
-                        PlayterHeart(2, i),
-                        AseAnimation {
-                            aseprite: asset_server.load("sprites/Heart.aseprite"),
-                            animation: Animation::tag("Full").with_speed(1.),
-                        },
-                        Sprite::default(),
-                        Transform::from_xyz(
-                            GRID_SIZE * 2.5 - (i as f32 * 32.),
-                            GRID_SIZE * 3.,
-                            100.,
-                        ),
-                    ));
-                }
-            })
-            .with_children(|parent| {
+pub fn setup_player_2(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    player_selection: Res<PlayerSelection>,
+) {
+    let aseprite = asset_server.load("sprites/Player2.aseprite");
+
+    commands
+        .spawn((
+            Player::new(player_selection.1, 2, "".to_string()),
+            AseAnimation {
+                aseprite,
+                animation: Animation::tag("idle").with_speed(1.),
+            },
+            Sprite::default(),
+            Transform::from_xyz(
+                (GRID_SIZE * MAP_SIZE_X as f32) / 2. - (GRID_SIZE * 5.),
+                -(GRID_SIZE * 5.),
+                100.,
+            ),
+        ))
+        .with_children(|parent| {
+            for i in 0..5 {
                 parent.spawn((
-                    Text2d::new("Player 2"),
-                    TextColor(Color::WHITE),
-                    TextLayout::new_with_justify(JustifyText::Center),
-                    TextFont {
-                        font: asset_server.load("fonts/pixeloid_mono.ttf"),
-                        font_size: 28.,
-                        ..Default::default()
+                    PlayterHeart(2, i),
+                    AseAnimation {
+                        aseprite: asset_server.load("sprites/Heart.aseprite"),
+                        animation: Animation::tag("Full").with_speed(1.),
                     },
-                    Transform::from_xyz(GRID_SIZE * 0.5, GRID_SIZE * 4.5, 100.0),
+                    Sprite::default(),
+                    Transform::from_xyz(GRID_SIZE * 2.5 - (i as f32 * 32.), GRID_SIZE * 3., 100.),
                 ));
-            });
-    }
+            }
+        })
+        .with_children(|parent| {
+            parent.spawn((
+                Text2d::new("Player 2"),
+                TextColor(Color::WHITE),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextFont {
+                    font: asset_server.load("fonts/pixeloid_mono.ttf"),
+                    font_size: 28.,
+                    ..Default::default()
+                },
+                Transform::from_xyz(GRID_SIZE * 0.5, GRID_SIZE * 4.5, 100.0),
+            ));
+        });
 }
 
 pub fn despawn_player(mut commands: Commands, query: Query<Entity, With<Player>>) {

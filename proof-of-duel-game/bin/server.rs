@@ -11,9 +11,7 @@ use bevy_quinnet::{
         channels::{ChannelId, ChannelKind, ChannelsConfiguration, DEFAULT_MAX_RELIABLE_FRAME_LEN},
     },
 };
-use proof_of_duel_game::{
-    LOCAL_BIND_IP, SERVER_HOST, SERVER_PORT, connection::ServerMessage, player::Player,
-};
+use proof_of_duel_game::{LOCAL_BIND_IP, SERVER_HOST, SERVER_PORT, ServerMessage, player::Player};
 
 #[derive(Resource, Debug, Clone, Default)]
 pub(crate) struct Players {

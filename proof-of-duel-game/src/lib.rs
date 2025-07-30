@@ -1,6 +1,7 @@
 use std::net::Ipv4Addr;
 
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 pub(crate) const GRID_SIZE: f32 = 32.0;
 pub(crate) const MAP_SIZE_X: usize = 40;
@@ -17,6 +18,17 @@ pub enum GameState {
     MainMenu,
     InGame,
     GameOver,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ServerMessage {
+    PlayerSelection {
+        player_number: usize,
+        client_id: u64,
+    },
+    IsGameReadyToStart {
+        is_ready: bool,
+    },
 }
 
 pub mod cameras;

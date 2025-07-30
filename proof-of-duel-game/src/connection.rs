@@ -6,13 +6,18 @@ use bevy_quinnet::{
     },
     shared::channels::{ChannelId, ChannelKind, ChannelsConfiguration},
 };
-use serde::{Deserialize, Serialize};
 
 use crate::{
-    LOCAL_BIND_IP, SERVER_HOST, SERVER_PORT,
+    LOCAL_BIND_IP, SERVER_HOST, SERVER_PORT, ServerMessage,
     player::{PlayerSelection, PlayersCounting},
     ui::main_menu::GameStartTimer,
 };
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ConnectionState {
+    #[default]
+    Idle,
+    Connected,
+}
 
 #[repr(u8)]
 pub enum ClientChannel {
@@ -29,17 +34,6 @@ impl ClientChannel {
     pub fn channels_configuration() -> ChannelsConfiguration {
         ChannelsConfiguration::from_types(vec![ChannelKind::default()]).unwrap()
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ServerMessage {
-    PlayerSelection {
-        player_number: usize,
-        client_id: u64,
-    },
-    IsGameReadyToStart {
-        is_ready: bool,
-    },
 }
 
 pub fn open_connection(mut client: ResMut<QuinnetClient>) {
@@ -73,10 +67,25 @@ pub fn handle_server_messages(
                 players_counting.0 += 1;
             }
             ServerMessage::IsGameReadyToStart { is_ready } => {
-                if is_ready {
+                if is_ready && !game_start_timer.is_running {
                     game_start_timer.is_running = true;
                 }
             }
         }
     }
+}
+
+pub fn to_connection_state(mut next_connection_state: ResMut<NextState<ConnectionState>>) {
+    next_connection_state.set(ConnectionState::Connected);
+}
+
+pub fn to_disconnected_state(
+    mut next_connection_state: ResMut<NextState<ConnectionState>>,
+    mut client: ResMut<QuinnetClient>,
+    mut player_selection: ResMut<PlayerSelection>,
+) {
+    client.close_connection(player_selection.1).unwrap();
+    player_selection.reset();
+
+    next_connection_state.set(ConnectionState::Idle);
 }

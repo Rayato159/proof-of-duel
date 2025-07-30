@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{GameState, player::PlayersCounting};
+use crate::{GameState, connection::ConnectionState, player::PlayersCounting};
 
 #[derive(Component)]
 pub struct MainMenuUI;
@@ -38,7 +38,7 @@ impl GameStartTimer {
     }
 }
 
-const MAIN_MENU_LIST: [&str; 3] = ["Hosting Lobby", "Join Game", "Quit"];
+const MAIN_MENU_LIST: [&str; 2] = ["Play Now", "Quit"];
 const WAITING_LIST: [&str; 1] = ["Back"];
 
 pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -134,6 +134,7 @@ pub fn main_menu_button_pressed_handler(
     button_query: Query<(&Interaction, &Name), Changed<Interaction>>,
     mut next_game_state: ResMut<NextState<GameState>>,
     mut next_main_menu_state: ResMut<NextState<MainMenuState>>,
+    mut next_connection_state: ResMut<NextState<ConnectionState>>,
 ) {
     for (interaction, name) in button_query.iter() {
         if *interaction != Interaction::Pressed {
@@ -141,13 +142,13 @@ pub fn main_menu_button_pressed_handler(
         }
 
         match name.as_str() {
-            "Hosting Lobby" => {
+            "Play Now" => {
                 next_main_menu_state.set(MainMenuState::PlayNow);
             }
-            "Join Game" => {
-                next_game_state.set(GameState::InGame);
+            "Quit" => {
+                next_connection_state.set(ConnectionState::Idle);
+                std::process::exit(0)
             }
-            "Quit" => std::process::exit(0),
             _ => return,
         }
     }
