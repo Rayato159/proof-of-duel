@@ -6,43 +6,16 @@ use bevy_quinnet::{
         ConnectionEvent, QuinnetServer, QuinnetServerPlugin, ServerEndpointConfiguration,
         certificate::CertificateRetrievalMode,
     },
-    shared::{
-        ClientId,
-        channels::{ChannelId, ChannelKind, ChannelsConfiguration, DEFAULT_MAX_RELIABLE_FRAME_LEN},
-    },
+    shared::ClientId,
 };
-use proof_of_duel_game::{LOCAL_BIND_IP, SERVER_HOST, SERVER_PORT, ServerMessage, player::Player};
+use proof_of_duel_game::{
+    ClientMessage, LOCAL_BIND_IP, SERVER_HOST, SERVER_PORT, ServerChannel, ServerMessage,
+    player::Player,
+};
 
 #[derive(Resource, Debug, Clone, Default)]
 pub(crate) struct Players {
     map: HashMap<ClientId, Player>,
-}
-
-#[repr(u8)]
-pub enum ServerChannel {
-    HostingLobby,
-    InGame,
-}
-
-impl Into<ChannelId> for ServerChannel {
-    fn into(self) -> ChannelId {
-        self as ChannelId
-    }
-}
-
-impl ServerChannel {
-    pub fn channels_configuration() -> ChannelsConfiguration {
-        ChannelsConfiguration::from_types(vec![
-            ChannelKind::OrderedReliable {
-                max_frame_size: DEFAULT_MAX_RELIABLE_FRAME_LEN,
-            },
-            ChannelKind::UnorderedReliable {
-                max_frame_size: DEFAULT_MAX_RELIABLE_FRAME_LEN,
-            },
-            ChannelKind::Unreliable,
-        ])
-        .unwrap()
-    }
 }
 
 fn start_listening(mut server: ResMut<QuinnetServer>) {
@@ -57,9 +30,39 @@ fn start_listening(mut server: ResMut<QuinnetServer>) {
         .unwrap();
 }
 
-fn handle_client_messages(mut server: ResMut<QuinnetServer>, mut players: ResMut<Players>) {
+fn handle_client_messages(mut server: ResMut<QuinnetServer>, players: Res<Players>) {
     let endpoint = server.endpoint_mut();
-    for client_id in endpoint.clients() {}
+    for client_id in endpoint.clients() {
+        while let Some((_, message)) = endpoint.try_receive_message_from::<ClientMessage>(client_id)
+        {
+            match message {
+                ClientMessage::ShootingCommand {
+                    player_number,
+                    states,
+                } => {
+                    if players.map.get(&client_id).is_some() {
+                        endpoint
+                            .broadcast_message_on(
+                                ServerChannel::Shooting,
+                                &ServerMessage::ShootingCommand {
+                                    player_number,
+                                    states,
+                                },
+                            )
+                            .unwrap();
+                    }
+                }
+                ClientMessage::PlayerHeartsStatus {
+                    player_1_hearts,
+                    player_2_hearts,
+                } => {}
+                ClientMessage::GameOver {
+                    winners,
+                    is_game_over,
+                } => {}
+            }
+        }
+    }
 }
 
 fn handle_server_events(
@@ -86,8 +89,9 @@ fn handle_server_events(
 
             server
                 .endpoint_mut()
-                .send_message(
+                .send_message_on(
                     client.id,
+                    ServerChannel::Lobby,
                     &ServerMessage::PlayerSelection {
                         player_number,
                         client_id: client.id,
@@ -98,7 +102,10 @@ fn handle_server_events(
             if players.map.len() == 2 {
                 server
                     .endpoint_mut()
-                    .broadcast_message(&ServerMessage::IsGameReadyToStart { is_ready: true })
+                    .broadcast_message_on(
+                        ServerChannel::Lobby,
+                        &ServerMessage::IsGameReadyToStart { is_ready: true },
+                    )
                     .unwrap();
             }
         }
@@ -111,7 +118,6 @@ pub fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(QuinnetServerPlugin::default())
         .add_systems(Startup, start_listening)
-        .add_systems(Update, handle_server_events)
-        .add_systems(Update, handle_client_messages)
+        .add_systems(Update, (handle_server_events, handle_client_messages))
         .run();
 }

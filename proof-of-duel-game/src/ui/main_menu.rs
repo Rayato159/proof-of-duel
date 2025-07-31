@@ -15,9 +15,10 @@ pub struct PlayNowText;
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MainMenuState {
     #[default]
-    None,
+    MainMenu,
     PlayNow,
     JoinGame,
+    None,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,16 +26,21 @@ pub struct PlayersCount(pub usize);
 
 #[derive(Resource)]
 pub struct GameStartTimer {
-    pub is_running: bool,
     pub timer: Timer,
+    pub active: bool,
 }
 
 impl GameStartTimer {
     pub fn new(secs: f32) -> Self {
         Self {
-            is_running: false,
+            active: false,
             timer: Timer::from_seconds(secs, TimerMode::Once),
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.active = false;
+        self.timer.reset();
     }
 }
 
@@ -132,7 +138,6 @@ pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 pub fn main_menu_button_pressed_handler(
     button_query: Query<(&Interaction, &Name), Changed<Interaction>>,
-    mut next_game_state: ResMut<NextState<GameState>>,
     mut next_main_menu_state: ResMut<NextState<MainMenuState>>,
     mut next_connection_state: ResMut<NextState<ConnectionState>>,
 ) {
@@ -274,31 +279,37 @@ pub fn spawn_play_now_ui(mut commands: Commands, asset_server: Res<AssetServer>)
 pub fn update_play_now_text(
     mut text_query: Query<&mut Text, With<PlayNowText>>,
     player_counting: Res<PlayersCounting>,
+    game_start_timer: Res<GameStartTimer>,
 ) {
-    for mut text in text_query.iter_mut() {
-        *text = Text::new(format!("Waiting for players: {}/2", player_counting.0));
+    if !game_start_timer.active {
+        for mut text in text_query.iter_mut() {
+            *text = Text::new(format!("Waiting for players: {}/2", player_counting.0));
+        }
     }
 }
 
-pub fn update_game_start_text(
+pub fn update_game_start_countdown(
     time: Res<Time>,
     mut countdown: ResMut<GameStartTimer>,
     mut text_query: Query<&mut Text, With<PlayNowText>>,
     mut next_main_menu_state: ResMut<NextState<MainMenuState>>,
     mut next_game_state: ResMut<NextState<GameState>>,
 ) {
-    if countdown.is_running {
-        countdown.timer.tick(time.delta());
+    if !countdown.active {
+        return;
+    }
 
-        for mut text in text_query.iter_mut() {
-            let remaining = countdown.timer.remaining_secs().ceil();
-            *text = Text::new(format!("Game starts in: {}", remaining));
-        }
+    countdown.timer.tick(time.delta());
 
-        if countdown.timer.finished() {
-            next_main_menu_state.set(MainMenuState::None);
-            next_game_state.set(GameState::InGame);
-        }
+    for mut text in text_query.iter_mut() {
+        let remaining = countdown.timer.remaining_secs().ceil();
+        *text = Text::new(format!("Game starts in: {}", remaining));
+    }
+
+    if countdown.timer.finished() {
+        countdown.active = false;
+        next_main_menu_state.set(MainMenuState::None);
+        next_game_state.set(GameState::InGame);
     }
 }
 
@@ -332,7 +343,7 @@ pub fn play_now_button_pressed_handler(
 
         match name.as_str() {
             "Back" => {
-                next_main_menu_state.set(MainMenuState::None);
+                next_main_menu_state.set(MainMenuState::MainMenu);
                 next_game_state.set(GameState::MainMenu);
             }
             _ => return,

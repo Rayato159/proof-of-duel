@@ -1,39 +1,21 @@
 use bevy::prelude::*;
-use bevy_quinnet::{
-    client::{
-        QuinnetClient, certificate::CertificateVerificationMode,
-        connection::ClientEndpointConfiguration,
-    },
-    shared::channels::{ChannelId, ChannelKind, ChannelsConfiguration},
+use bevy_quinnet::client::{
+    QuinnetClient, certificate::CertificateVerificationMode,
+    connection::ClientEndpointConfiguration,
 };
 
 use crate::{
-    LOCAL_BIND_IP, SERVER_HOST, SERVER_PORT, ServerMessage,
-    player::{PlayerSelection, PlayersCounting},
+    ClientChannel, LOCAL_BIND_IP, SERVER_HOST, SERVER_PORT, ServerMessage,
+    player::{PlayerHertsStatus, PlayerSelection, PlayersCounting},
+    shooting::ShootingEvent,
     ui::main_menu::GameStartTimer,
 };
+
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ConnectionState {
     #[default]
     Idle,
     Connected,
-}
-
-#[repr(u8)]
-pub enum ClientChannel {
-    ShootingCommand,
-}
-
-impl Into<ChannelId> for ClientChannel {
-    fn into(self) -> ChannelId {
-        self as ChannelId
-    }
-}
-
-impl ClientChannel {
-    pub fn channels_configuration() -> ChannelsConfiguration {
-        ChannelsConfiguration::from_types(vec![ChannelKind::default()]).unwrap()
-    }
 }
 
 pub fn open_connection(mut client: ResMut<QuinnetClient>) {
@@ -51,8 +33,10 @@ pub fn handle_server_messages(
     mut player_selection: ResMut<PlayerSelection>,
     mut players_counting: ResMut<PlayersCounting>,
     mut game_start_timer: ResMut<GameStartTimer>,
+    mut player_herts_status: ResMut<PlayerHertsStatus>,
+    mut shooting_event: EventWriter<ShootingEvent>,
 ) {
-    while let Some((_, message)) = client
+    while let Some((channel, message)) = client
         .connection_mut()
         .try_receive_message::<ServerMessage>()
     {
@@ -61,15 +45,35 @@ pub fn handle_server_messages(
                 player_number,
                 client_id,
             } => {
-                player_selection.0 = player_number;
-                player_selection.1 = client_id;
+                if channel == 0 {
+                    player_selection.0 = player_number;
+                    player_selection.1 = client_id;
 
-                players_counting.0 += 1;
+                    players_counting.0 += 1;
+                }
             }
             ServerMessage::IsGameReadyToStart { is_ready } => {
-                if is_ready && !game_start_timer.is_running {
-                    game_start_timer.is_running = true;
+                if is_ready && !game_start_timer.active && channel == 0 {
+                    game_start_timer.active = true;
                 }
+            }
+            ServerMessage::ShootingCommand {
+                player_number,
+                states,
+            } => {
+                if channel == 1 {
+                    shooting_event.write(ShootingEvent {
+                        player: player_number,
+                        states,
+                    });
+                }
+            }
+            ServerMessage::PlayerHeartsStatus {
+                player_1_hearts,
+                player_2_hearts,
+            } => {
+                player_herts_status.player_1_hearts = player_1_hearts;
+                player_herts_status.player_2_hearts = player_2_hearts;
             }
         }
     }
@@ -88,4 +92,8 @@ pub fn to_disconnected_state(
     player_selection.reset();
 
     next_connection_state.set(ConnectionState::Idle);
+}
+
+pub fn reset_game_started_timer(mut game_start_timer: ResMut<GameStartTimer>) {
+    game_start_timer.reset();
 }

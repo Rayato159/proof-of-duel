@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{GameState, player::PlayerHertsStatus};
+use crate::{GameState, player::PlayerHertsStatus, ui::main_menu::MainMenuState};
 
 #[derive(Component)]
 pub struct GameOverUI;
@@ -114,6 +114,7 @@ pub fn game_over_ui_interaction(
 pub fn game_over_button_pressed_handler(
     button_query: Query<(&Interaction, &Name), Changed<Interaction>>,
     mut next_game_state: ResMut<NextState<GameState>>,
+    mut main_menu_state: ResMut<NextState<MainMenuState>>,
 ) {
     for (interaction, name) in button_query.iter() {
         if *interaction != Interaction::Pressed {
@@ -122,6 +123,7 @@ pub fn game_over_button_pressed_handler(
 
         match name.as_str() {
             "Back to Main Menu" => {
+                main_menu_state.set(MainMenuState::MainMenu);
                 next_game_state.set(GameState::MainMenu);
             }
             _ => return,

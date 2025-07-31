@@ -1,6 +1,9 @@
 use std::net::Ipv4Addr;
 
 use bevy::prelude::*;
+use bevy_quinnet::shared::channels::{
+    ChannelId, ChannelKind, ChannelsConfiguration, DEFAULT_MAX_RELIABLE_FRAME_LEN,
+};
 use serde::{Deserialize, Serialize};
 
 pub(crate) const GRID_SIZE: f32 = 32.0;
@@ -20,6 +23,57 @@ pub enum GameState {
     GameOver,
 }
 
+#[repr(u8)]
+pub enum ServerChannel {
+    Lobby,
+    Shooting,
+}
+
+impl Into<ChannelId> for ServerChannel {
+    fn into(self) -> ChannelId {
+        self as ChannelId
+    }
+}
+
+impl ServerChannel {
+    pub fn channels_configuration() -> ChannelsConfiguration {
+        ChannelsConfiguration::from_types(vec![
+            ChannelKind::OrderedReliable {
+                max_frame_size: DEFAULT_MAX_RELIABLE_FRAME_LEN,
+            },
+            ChannelKind::UnorderedReliable {
+                max_frame_size: DEFAULT_MAX_RELIABLE_FRAME_LEN,
+            },
+            ChannelKind::Unreliable,
+        ])
+        .unwrap()
+    }
+}
+
+#[repr(u8)]
+pub enum ClientChannel {
+    Lobby,
+    Shooting,
+}
+
+impl Into<ChannelId> for ClientChannel {
+    fn into(self) -> ChannelId {
+        self as ChannelId
+    }
+}
+
+impl ClientChannel {
+    pub fn channels_configuration() -> ChannelsConfiguration {
+        ChannelsConfiguration::from_types(vec![ChannelKind::default()]).unwrap()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShootingStatesMesasge {
+    pub key: String,
+    pub is_pressed_correct: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ServerMessage {
     PlayerSelection {
@@ -28,6 +82,30 @@ pub enum ServerMessage {
     },
     IsGameReadyToStart {
         is_ready: bool,
+    },
+    ShootingCommand {
+        player_number: usize,
+        states: [ShootingStatesMesasge; 5],
+    },
+    PlayerHeartsStatus {
+        player_1_hearts: usize,
+        player_2_hearts: usize,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ClientMessage {
+    ShootingCommand {
+        player_number: usize,
+        states: [ShootingStatesMesasge; 5],
+    },
+    PlayerHeartsStatus {
+        player_1_hearts: u8,
+        player_2_hearts: u8,
+    },
+    GameOver {
+        winners: Vec<usize>,
+        is_game_over: bool,
     },
 }
 

@@ -3,7 +3,7 @@ use bevy_aseprite_ultra::prelude::*;
 
 use crate::{
     GRID_SIZE, GameState, MAP_SIZE_X,
-    shooting::{DuelRound, ShootingEvent, ShootingStatesContainer},
+    shooting::{ResetKeysEvent, ShootingEvent},
     sounds::gun_shot::GunShotSound,
 };
 
@@ -168,72 +168,61 @@ pub fn despawn_player(mut commands: Commands, query: Query<Entity, With<Player>>
 pub fn player_shooting(
     mut commands: Commands,
     mut shooting_event: EventReader<ShootingEvent>,
-    shooting_states_container: Res<ShootingStatesContainer>,
-    duel_round: Res<DuelRound>,
     asset_server: Res<AssetServer>,
     mut player_query: Query<(&mut AseAnimation, &Player), With<Player>>,
     mut player_hit_event: EventWriter<PlayerHit>,
+    mut reset_key_event: EventWriter<ResetKeysEvent>,
 ) {
     for event in shooting_event.read() {
         if event.player == 1 {
-            let shooting_state = shooting_states_container
-                .states
-                .get(duel_round.current_round - 2);
-
-            if let Some(state) = shooting_state {
-                if state.data.iter().filter(|d| d.is_pressed_correct).count() == 5 {
-                    for (mut player_animation, player) in player_query.iter_mut() {
-                        if player.player_number == 1 {
-                            player_animation.animation = Animation::tag("Firing")
-                                .with_speed(1.)
-                                .with_repeat(AnimationRepeat::Count(0))
-                                .with_then("idle", AnimationRepeat::Loop)
-                                .with_speed(1.);
-                        }
+            if event.states.iter().filter(|d| d.is_pressed_correct).count() == 5 {
+                for (mut player_animation, player) in player_query.iter_mut() {
+                    if player.player_number == 1 {
+                        player_animation.animation = Animation::tag("Firing")
+                            .with_speed(1.)
+                            .with_repeat(AnimationRepeat::Count(0))
+                            .with_then("idle", AnimationRepeat::Loop)
+                            .with_speed(1.);
                     }
-
-                    commands.spawn((
-                        GunShotSound,
-                        AudioPlayer::new(asset_server.load("sounds/GunShot.ogg")),
-                        PlaybackSettings::ONCE
-                            .with_spatial(true)
-                            .with_volume(Volume::Linear(1.0)),
-                        Transform::from_xyz(GRID_SIZE * 5., 0., 1000.),
-                    ));
-
-                    player_hit_event.write(PlayerHit(2));
                 }
+
+                commands.spawn((
+                    GunShotSound,
+                    AudioPlayer::new(asset_server.load("sounds/GunShot.ogg")),
+                    PlaybackSettings::ONCE
+                        .with_spatial(true)
+                        .with_volume(Volume::Linear(1.0)),
+                    Transform::from_xyz(GRID_SIZE * 5., 0., 1000.),
+                ));
+
+                player_hit_event.write(PlayerHit(2));
+                reset_key_event.write(ResetKeysEvent);
             }
         }
 
         if event.player == 2 {
-            let shooting_state = shooting_states_container
-                .states
-                .get(duel_round.current_round - 2);
-
-            if let Some(state) = shooting_state {
-                if state.data.iter().filter(|d| d.is_pressed_correct).count() == 5 {
-                    for (mut player_animation, player) in player_query.iter_mut() {
-                        if player.player_number == 2 {
-                            player_animation.animation = Animation::tag("Firing")
-                                .with_speed(1.)
-                                .with_repeat(AnimationRepeat::Count(0))
-                                .with_then("idle", AnimationRepeat::Loop)
-                                .with_speed(1.);
-                        }
+            if event.states.iter().filter(|d| d.is_pressed_correct).count() == 5 {
+                for (mut player_animation, player) in player_query.iter_mut() {
+                    if player.player_number == 2 {
+                        player_animation.animation = Animation::tag("Firing")
+                            .with_speed(1.)
+                            .with_repeat(AnimationRepeat::Count(0))
+                            .with_then("idle", AnimationRepeat::Loop)
+                            .with_speed(1.);
                     }
-
-                    commands.spawn((
-                        GunShotSound,
-                        AudioPlayer::new(asset_server.load("sounds/GunShot.ogg")),
-                        PlaybackSettings::ONCE
-                            .with_spatial(true)
-                            .with_volume(Volume::Linear(1.0)),
-                        Transform::from_xyz(-GRID_SIZE * 5., 0., 1000.),
-                    ));
-
-                    player_hit_event.write(PlayerHit(1));
                 }
+
+                commands.spawn((
+                    GunShotSound,
+                    AudioPlayer::new(asset_server.load("sounds/GunShot.ogg")),
+                    PlaybackSettings::ONCE
+                        .with_spatial(true)
+                        .with_volume(Volume::Linear(1.0)),
+                    Transform::from_xyz(-GRID_SIZE * 5., 0., 1000.),
+                ));
+
+                player_hit_event.write(PlayerHit(1));
+                reset_key_event.write(ResetKeysEvent);
             }
         }
     }
@@ -255,7 +244,7 @@ pub fn player_hearts_status_update(
                 player_herts_status.player_1_hearts.saturating_sub(1);
 
             for (mut animation, heart) in player_heart_query.iter_mut() {
-                if heart.1 == 1 && heart.0 == player_herts_status.player_1_hearts {
+                if heart.0 == 1 && heart.1 == player_herts_status.player_1_hearts {
                     animation.animation = Animation::tag("Empty")
                         .with_speed(1.)
                         .with_repeat(AnimationRepeat::Loop);
@@ -282,7 +271,7 @@ pub fn player_hearts_status_update(
                 player_herts_status.player_2_hearts.saturating_sub(1);
 
             for (mut animation, heart) in player_heart_query.iter_mut() {
-                if heart.1 == 2 && heart.0 == player_herts_status.player_2_hearts {
+                if heart.0 == 2 && heart.1 == player_herts_status.player_2_hearts {
                     animation.animation = Animation::tag("Empty")
                         .with_speed(1.)
                         .with_repeat(AnimationRepeat::Loop);
@@ -309,10 +298,8 @@ pub fn player_hearts_status_update(
 pub fn change_state_to_game_over(
     mut next_game_state: ResMut<NextState<GameState>>,
     mut check_is_game_over_event: EventReader<CheckIsGameOverEvent>,
-    mut duel_round: ResMut<DuelRound>,
 ) {
     for _ in check_is_game_over_event.read() {
-        duel_round.reset();
         next_game_state.set(GameState::GameOver);
     }
 }

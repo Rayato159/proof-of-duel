@@ -12,10 +12,7 @@ use proof_of_duel_game::{
         self, CheckIsGameOverEvent, PlayerHertsStatus, PlayerHit, PlayerSelection, PlayersCounting,
     },
     scene,
-    shooting::{
-        self, CheckShootingKeyEvent, DuelRound, ResetKeysEvent, ShootingEvent,
-        ShootingStatesContainer,
-    },
+    shooting::{self, CheckShootingKeyEvent, ResetKeysEvent, ShootingEvent, ShootingStates},
     sounds,
     ui::{
         self,
@@ -26,8 +23,7 @@ use proof_of_duel_game::{
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::BLACK))
-        .insert_resource(DuelRound::default())
-        .insert_resource(ShootingStatesContainer::default())
+        .insert_resource(ShootingStates::default())
         .insert_resource(PlayerHertsStatus::default())
         .insert_resource(PlayerSelection::default())
         .insert_resource(GameStartTimer::new(3.0))
@@ -64,7 +60,7 @@ fn main() {
         .add_event::<PlayerHit>()
         .add_event::<CheckIsGameOverEvent>()
         .add_systems(
-            OnEnter(GameState::MainMenu),
+            OnEnter(MainMenuState::MainMenu),
             (
                 ui::main_menu::spawn_main_menu,
                 cameras::main_menu_camera_setup,
@@ -77,17 +73,19 @@ fn main() {
                 ui::main_menu::main_menu_ui_interaction,
             )
                 .run_if(in_state(GameState::MainMenu))
-                .run_if(in_state(MainMenuState::None)),
+                .run_if(in_state(MainMenuState::MainMenu)),
         )
         .add_systems(
             OnExit(GameState::MainMenu),
             (
-                ui::main_menu::despawn_main_menu,
                 cameras::despawn_main_menu_camera,
+                ui::main_menu::despawn_main_menu,
+                cameras::despawn_play_now_ui_camera,
+                ui::main_menu::despawn_play_now_ui,
             ),
         )
         .add_systems(
-            OnExit(MainMenuState::None),
+            OnExit(MainMenuState::MainMenu),
             (
                 ui::main_menu::despawn_main_menu,
                 cameras::despawn_main_menu_camera,
@@ -97,7 +95,7 @@ fn main() {
         .add_systems(
             OnEnter(MainMenuState::PlayNow),
             (
-                cameras::main_menu_play_now_ui_camera_setup,
+                cameras::play_now_ui_camera_setup,
                 ui::main_menu::spawn_play_now_ui,
                 connection::open_connection,
                 connection::to_connection_state,
@@ -109,16 +107,12 @@ fn main() {
             connection::handle_server_messages.run_if(in_state(ConnectionState::Connected)),
         )
         .add_systems(
-            OnExit(ConnectionState::Connected),
-            connection::to_disconnected_state,
-        )
-        .add_systems(
             Update,
             (
                 ui::main_menu::play_now_button_pressed_handler,
                 ui::main_menu::play_now_ui_interaction,
                 ui::main_menu::update_play_now_text,
-                ui::main_menu::update_game_start_text,
+                ui::main_menu::update_game_start_countdown,
             )
                 .run_if(in_state(GameState::MainMenu))
                 .run_if(in_state(MainMenuState::PlayNow)),
@@ -126,10 +120,8 @@ fn main() {
         .add_systems(
             OnExit(MainMenuState::PlayNow),
             (
-                cameras::despawn_main_menu_play_now_ui_camera,
+                cameras::despawn_play_now_ui_camera,
                 ui::main_menu::despawn_play_now_ui,
-                cameras::main_menu_camera_setup,
-                ui::main_menu::spawn_main_menu,
             )
                 .chain(),
         )
@@ -172,6 +164,8 @@ fn main() {
             (
                 cameras::game_over_camera_setup,
                 ui::game_over::spawn_game_over_ui,
+                connection::to_disconnected_state,
+                connection::reset_game_started_timer,
             )
                 .chain(),
         )
