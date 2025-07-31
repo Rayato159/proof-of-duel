@@ -1,5 +1,6 @@
 use crate::{
-    ClientMessage, GRID_SIZE, ShootingStatesMesasge, player::PlayerSelection,
+    ClientMessage, GRID_SIZE, ShootingStatesMesasge,
+    player::{PlayerSelection, ShootingLock},
     shooting::keycode::ALL_KEYS,
 };
 use bevy::prelude::*;
@@ -55,6 +56,15 @@ impl ShootingStates {
             data.key = KEY_POOL[rand::rng().random_range(0..KEY_POOL.len())];
             data.is_pressed_correct = false;
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.data = [(); 5].map(|_| ShootingData {
+            key: KEY_POOL[rand::rng().random_range(0..KEY_POOL.len())],
+            is_pressed_correct: false,
+        });
+        self.current_key_index = 0;
+        self.wrong_count = 0;
     }
 }
 
@@ -145,6 +155,7 @@ pub fn shooting_key_input(
     mut reset_key_event: EventWriter<ResetKeysEvent>,
     player_slecrion: Res<PlayerSelection>,
     mut client: ResMut<QuinnetClient>,
+    mut shooting_lock: ResMut<ShootingLock>,
 ) {
     let current_key_index = shooting_states.current_key_index;
 
@@ -191,6 +202,8 @@ pub fn shooting_key_input(
                         is_pressed_correct: s.is_pressed_correct,
                     })
                     .collect::<Vec<ShootingStatesMesasge>>();
+
+                shooting_lock.lock();
 
                 let _ = client
                     .connection_mut()

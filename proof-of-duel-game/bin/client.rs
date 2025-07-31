@@ -8,16 +8,11 @@ use bevy_quinnet::client::QuinnetClientPlugin;
 use proof_of_duel_game::{
     AUDIO_SCALE, GameState, cameras,
     connection::{self, ConnectionState},
-    player::{
-        self, CheckIsGameOverEvent, PlayerHertsStatus, PlayerHit, PlayerSelection, PlayersCounting,
-    },
+    player::{self, PlayerHertsStatus, PlayerHit, PlayerSelection, PlayersCounting, ShootingLock},
     scene,
     shooting::{self, CheckShootingKeyEvent, ResetKeysEvent, ShootingEvent, ShootingStates},
     sounds,
-    ui::{
-        self,
-        main_menu::{GameStartTimer, MainMenuState},
-    },
+    ui::{self, game_over::WhoIsWinner, main_menu::MainMenuState, play_now_ui::GameStartTimer},
 };
 
 fn main() {
@@ -28,6 +23,8 @@ fn main() {
         .insert_resource(PlayerSelection::default())
         .insert_resource(GameStartTimer::new(3.0))
         .insert_resource(PlayersCounting::default())
+        .insert_resource(WhoIsWinner::default())
+        .insert_resource(ShootingLock::default())
         .add_plugins((DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
@@ -58,7 +55,6 @@ fn main() {
         .add_event::<ResetKeysEvent>()
         .add_event::<CheckShootingKeyEvent>()
         .add_event::<PlayerHit>()
-        .add_event::<CheckIsGameOverEvent>()
         .add_systems(
             OnEnter(MainMenuState::MainMenu),
             (
@@ -81,7 +77,7 @@ fn main() {
                 cameras::despawn_main_menu_camera,
                 ui::main_menu::despawn_main_menu,
                 cameras::despawn_play_now_ui_camera,
-                ui::main_menu::despawn_play_now_ui,
+                ui::play_now_ui::despawn_play_now_ui,
             ),
         )
         .add_systems(
@@ -96,7 +92,7 @@ fn main() {
             OnEnter(MainMenuState::PlayNow),
             (
                 cameras::play_now_ui_camera_setup,
-                ui::main_menu::spawn_play_now_ui,
+                ui::play_now_ui::spawn_play_now_ui,
                 connection::open_connection,
                 connection::to_connection_state,
             )
@@ -109,10 +105,10 @@ fn main() {
         .add_systems(
             Update,
             (
-                ui::main_menu::play_now_button_pressed_handler,
-                ui::main_menu::play_now_ui_interaction,
-                ui::main_menu::update_play_now_text,
-                ui::main_menu::update_game_start_countdown,
+                ui::play_now_ui::play_now_button_pressed_handler,
+                ui::play_now_ui::play_now_ui_interaction,
+                ui::play_now_ui::update_play_now_text,
+                ui::play_now_ui::update_game_start_countdown,
             )
                 .run_if(in_state(GameState::MainMenu))
                 .run_if(in_state(MainMenuState::PlayNow)),
@@ -121,7 +117,7 @@ fn main() {
             OnExit(MainMenuState::PlayNow),
             (
                 cameras::despawn_play_now_ui_camera,
-                ui::main_menu::despawn_play_now_ui,
+                ui::play_now_ui::despawn_play_now_ui,
             )
                 .chain(),
         )
@@ -144,7 +140,6 @@ fn main() {
                 shooting::spawn_new_shooting_keys,
                 player::player_shooting,
                 player::player_hearts_status_update,
-                player::change_state_to_game_over,
             )
                 .run_if(in_state(GameState::InGame)),
         )
@@ -164,7 +159,6 @@ fn main() {
             (
                 cameras::game_over_camera_setup,
                 ui::game_over::spawn_game_over_ui,
-                connection::to_disconnected_state,
                 connection::reset_game_started_timer,
             )
                 .chain(),

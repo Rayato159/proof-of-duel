@@ -30,7 +30,7 @@ fn start_listening(mut server: ResMut<QuinnetServer>) {
         .unwrap();
 }
 
-fn handle_client_messages(mut server: ResMut<QuinnetServer>, players: Res<Players>) {
+fn handle_client_messages(mut server: ResMut<QuinnetServer>, mut players: ResMut<Players>) {
     let endpoint = server.endpoint_mut();
     for client_id in endpoint.clients() {
         while let Some((_, message)) = endpoint.try_receive_message_from::<ClientMessage>(client_id)
@@ -52,14 +52,52 @@ fn handle_client_messages(mut server: ResMut<QuinnetServer>, players: Res<Player
                             .unwrap();
                     }
                 }
-                ClientMessage::PlayerHeartsStatus {
+                ClientMessage::UpdateHeartsStatus {
                     player_1_hearts,
                     player_2_hearts,
-                } => {}
-                ClientMessage::GameOver {
-                    winners,
-                    is_game_over,
-                } => {}
+                    who_was_hit,
+                } => {
+                    if players.map.get(&client_id).is_some() {
+                        if who_was_hit == 1 {
+                            endpoint
+                                .broadcast_message_on(
+                                    ServerChannel::UpdateHeartsStatus,
+                                    &ServerMessage::UpdateHeartsStatus {
+                                        player_1_hearts: player_1_hearts.saturating_sub(1),
+                                        player_2_hearts,
+                                        who_was_hit,
+                                    },
+                                )
+                                .unwrap();
+                        } else if who_was_hit == 2 {
+                            endpoint
+                                .broadcast_message_on(
+                                    ServerChannel::UpdateHeartsStatus,
+                                    &ServerMessage::UpdateHeartsStatus {
+                                        player_1_hearts,
+                                        player_2_hearts: player_2_hearts.saturating_sub(1),
+                                        who_was_hit,
+                                    },
+                                )
+                                .unwrap();
+                        }
+                    }
+                }
+                ClientMessage::GameOver { winner } => {
+                    if players.map.get(&client_id).is_some() {
+                        endpoint
+                            .broadcast_message(&ServerMessage::GameOver { winner })
+                            .unwrap();
+                    }
+                }
+                ClientMessage::DisconnectPlayer { client_id } => {
+                    if players.map.contains_key(&client_id) {
+                        for client_id in endpoint.clients() {
+                            let _ = endpoint.disconnect_client(client_id);
+                            players.map.remove(&client_id);
+                        }
+                    }
+                }
             }
         }
     }
@@ -76,7 +114,11 @@ fn handle_server_events(
         if players.map.len() >= 2 {
             server.endpoint_mut().disconnect_client(client.id).unwrap();
         } else {
-            let player_number = players.map.len() + 1;
+            let player_number = if !players.map.values().any(|p| p.player_number == 1) {
+                1
+            } else {
+                2
+            };
 
             players.map.insert(
                 client.id,
@@ -118,6 +160,7 @@ pub fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(QuinnetServerPlugin::default())
         .add_systems(Startup, start_listening)
-        .add_systems(Update, (handle_server_events, handle_client_messages))
+        .add_systems(Update, handle_server_events)
+        .add_systems(Update, handle_client_messages)
         .run();
 }

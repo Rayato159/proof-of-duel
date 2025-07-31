@@ -1,8 +1,9 @@
 use bevy::{audio::Volume, prelude::*};
 use bevy_aseprite_ultra::prelude::*;
+use bevy_quinnet::client::QuinnetClient;
 
 use crate::{
-    GRID_SIZE, GameState, MAP_SIZE_X,
+    ClientMessage, GRID_SIZE, MAP_SIZE_X,
     shooting::{ResetKeysEvent, ShootingEvent},
     sounds::gun_shot::GunShotSound,
 };
@@ -19,6 +20,12 @@ impl PlayerSelection {
 
 #[derive(Resource, Default)]
 pub struct PlayersCounting(pub usize);
+
+impl PlayersCounting {
+    pub fn reset(&mut self) {
+        self.0 = 0;
+    }
+}
 
 #[derive(Debug, Clone, Component)]
 pub struct Player {
@@ -43,6 +50,13 @@ pub struct PlayerHertsStatus {
     pub player_2_hearts: usize,
 }
 
+impl PlayerHertsStatus {
+    pub fn reset(&mut self) {
+        self.player_1_hearts = 5;
+        self.player_2_hearts = 5;
+    }
+}
+
 impl Default for PlayerHertsStatus {
     fn default() -> Self {
         Self {
@@ -58,8 +72,26 @@ pub struct PlayterHeart(pub usize, pub usize);
 #[derive(Event)]
 pub struct PlayerHit(pub usize);
 
-#[derive(Event)]
-pub struct CheckIsGameOverEvent;
+#[derive(Resource, Default)]
+pub struct ShootingLock(pub bool);
+
+impl ShootingLock {
+    pub fn lock(&mut self) {
+        self.0 = true;
+    }
+
+    pub fn unlock(&mut self) {
+        self.0 = false;
+    }
+
+    pub fn is_locked(&self) -> bool {
+        self.0
+    }
+
+    pub fn reset(&mut self) {
+        self.0 = false;
+    }
+}
 
 pub fn setup_player_1(
     mut commands: Commands,
@@ -170,11 +202,13 @@ pub fn player_shooting(
     mut shooting_event: EventReader<ShootingEvent>,
     asset_server: Res<AssetServer>,
     mut player_query: Query<(&mut AseAnimation, &Player), With<Player>>,
-    mut player_hit_event: EventWriter<PlayerHit>,
     mut reset_key_event: EventWriter<ResetKeysEvent>,
+    mut client: ResMut<QuinnetClient>,
+    player_hearts_status: Res<PlayerHertsStatus>,
+    mut shooting_lock: ResMut<ShootingLock>,
 ) {
     for event in shooting_event.read() {
-        if event.player == 1 {
+        if event.player == 1 && shooting_lock.is_locked() {
             if event.states.iter().filter(|d| d.is_pressed_correct).count() == 5 {
                 for (mut player_animation, player) in player_query.iter_mut() {
                     if player.player_number == 1 {
@@ -195,12 +229,21 @@ pub fn player_shooting(
                     Transform::from_xyz(GRID_SIZE * 5., 0., 1000.),
                 ));
 
-                player_hit_event.write(PlayerHit(2));
+                let _ = client
+                    .connection_mut()
+                    .send_message(&ClientMessage::UpdateHeartsStatus {
+                        player_1_hearts: player_hearts_status.player_1_hearts,
+                        player_2_hearts: player_hearts_status.player_2_hearts,
+                        who_was_hit: 2,
+                    });
+
+                shooting_lock.unlock();
+
                 reset_key_event.write(ResetKeysEvent);
             }
         }
 
-        if event.player == 2 {
+        if event.player == 2 && shooting_lock.is_locked() {
             if event.states.iter().filter(|d| d.is_pressed_correct).count() == 5 {
                 for (mut player_animation, player) in player_query.iter_mut() {
                     if player.player_number == 2 {
@@ -221,7 +264,16 @@ pub fn player_shooting(
                     Transform::from_xyz(-GRID_SIZE * 5., 0., 1000.),
                 ));
 
-                player_hit_event.write(PlayerHit(1));
+                let _ = client
+                    .connection_mut()
+                    .send_message(&ClientMessage::UpdateHeartsStatus {
+                        player_1_hearts: player_hearts_status.player_1_hearts,
+                        player_2_hearts: player_hearts_status.player_2_hearts,
+                        who_was_hit: 1,
+                    });
+
+                shooting_lock.unlock();
+
                 reset_key_event.write(ResetKeysEvent);
             }
         }
@@ -229,22 +281,19 @@ pub fn player_shooting(
 }
 
 pub fn player_hearts_status_update(
-    mut player_hit_event: EventReader<PlayerHit>,
-    mut player_herts_status: ResMut<PlayerHertsStatus>,
+    mut player_hit: EventReader<PlayerHit>,
+    player_hearts_status: Res<PlayerHertsStatus>,
     mut player_query: Query<(&mut AseAnimation, &Player), (With<Player>, Without<PlayterHeart>)>,
     mut player_heart_query: Query<
         (&mut AseAnimation, &PlayterHeart),
         (With<PlayterHeart>, Without<Player>),
     >,
-    mut check_is_game_over_event: EventWriter<CheckIsGameOverEvent>,
+    mut client: ResMut<QuinnetClient>,
 ) {
-    for event in player_hit_event.read() {
+    for event in player_hit.read() {
         if event.0 == 1 {
-            player_herts_status.player_1_hearts =
-                player_herts_status.player_1_hearts.saturating_sub(1);
-
             for (mut animation, heart) in player_heart_query.iter_mut() {
-                if heart.0 == 1 && heart.1 == player_herts_status.player_1_hearts {
+                if heart.0 == 1 && heart.1 == player_hearts_status.player_1_hearts {
                     animation.animation = Animation::tag("Empty")
                         .with_speed(1.)
                         .with_repeat(AnimationRepeat::Loop);
@@ -261,17 +310,30 @@ pub fn player_hearts_status_update(
                 }
             }
 
-            if player_herts_status.player_1_hearts == 0 {
-                check_is_game_over_event.write(CheckIsGameOverEvent);
+            if player_hearts_status.player_1_hearts == 0 {
+                let _ = client
+                    .connection_mut()
+                    .send_message(&ClientMessage::GameOver { winner: 2 });
+            }
+
+            if player_hearts_status.player_2_hearts == 0 {
+                let _ = client
+                    .connection_mut()
+                    .send_message(&ClientMessage::GameOver { winner: 1 });
+            }
+
+            if player_hearts_status.player_1_hearts == 0
+                && player_hearts_status.player_2_hearts == 0
+            {
+                let _ = client
+                    .connection_mut()
+                    .send_message(&ClientMessage::GameOver { winner: 0 });
             }
         }
 
         if event.0 == 2 {
-            player_herts_status.player_2_hearts =
-                player_herts_status.player_2_hearts.saturating_sub(1);
-
             for (mut animation, heart) in player_heart_query.iter_mut() {
-                if heart.0 == 2 && heart.1 == player_herts_status.player_2_hearts {
+                if heart.0 == 2 && heart.1 == player_hearts_status.player_2_hearts {
                     animation.animation = Animation::tag("Empty")
                         .with_speed(1.)
                         .with_repeat(AnimationRepeat::Loop);
@@ -288,18 +350,25 @@ pub fn player_hearts_status_update(
                 }
             }
 
-            if player_herts_status.player_2_hearts == 0 {
-                check_is_game_over_event.write(CheckIsGameOverEvent);
+            if player_hearts_status.player_1_hearts == 0 {
+                let _ = client
+                    .connection_mut()
+                    .send_message(&ClientMessage::GameOver { winner: 2 });
+            }
+
+            if player_hearts_status.player_2_hearts == 0 {
+                let _ = client
+                    .connection_mut()
+                    .send_message(&ClientMessage::GameOver { winner: 1 });
+            }
+
+            if player_hearts_status.player_1_hearts == 0
+                && player_hearts_status.player_2_hearts == 0
+            {
+                let _ = client
+                    .connection_mut()
+                    .send_message(&ClientMessage::GameOver { winner: 0 });
             }
         }
-    }
-}
-
-pub fn change_state_to_game_over(
-    mut next_game_state: ResMut<NextState<GameState>>,
-    mut check_is_game_over_event: EventReader<CheckIsGameOverEvent>,
-) {
-    for _ in check_is_game_over_event.read() {
-        next_game_state.set(GameState::GameOver);
     }
 }

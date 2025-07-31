@@ -5,10 +5,10 @@ use bevy_quinnet::client::{
 };
 
 use crate::{
-    ClientChannel, LOCAL_BIND_IP, SERVER_HOST, SERVER_PORT, ServerMessage,
-    player::{PlayerHertsStatus, PlayerSelection, PlayersCounting},
+    ClientChannel, GameState, LOCAL_BIND_IP, SERVER_HOST, SERVER_PORT, ServerMessage,
+    player::{PlayerHertsStatus, PlayerHit, PlayerSelection, PlayersCounting},
     shooting::ShootingEvent,
-    ui::main_menu::GameStartTimer,
+    ui::{game_over::WhoIsWinner, play_now_ui::GameStartTimer},
 };
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
@@ -33,8 +33,11 @@ pub fn handle_server_messages(
     mut player_selection: ResMut<PlayerSelection>,
     mut players_counting: ResMut<PlayersCounting>,
     mut game_start_timer: ResMut<GameStartTimer>,
-    mut player_herts_status: ResMut<PlayerHertsStatus>,
+    mut player_hearts_status: ResMut<PlayerHertsStatus>,
     mut shooting_event: EventWriter<ShootingEvent>,
+    mut player_hit: EventWriter<PlayerHit>,
+    mut next_game_state: ResMut<NextState<GameState>>,
+    mut who_is_winner: ResMut<WhoIsWinner>,
 ) {
     while let Some((channel, message)) = client
         .connection_mut()
@@ -68,12 +71,21 @@ pub fn handle_server_messages(
                     });
                 }
             }
-            ServerMessage::PlayerHeartsStatus {
+            ServerMessage::UpdateHeartsStatus {
                 player_1_hearts,
                 player_2_hearts,
+                who_was_hit,
             } => {
-                player_herts_status.player_1_hearts = player_1_hearts;
-                player_herts_status.player_2_hearts = player_2_hearts;
+                if channel == 2 {
+                    player_hearts_status.player_1_hearts = player_1_hearts;
+                    player_hearts_status.player_2_hearts = player_2_hearts;
+
+                    player_hit.write(PlayerHit(who_was_hit));
+                }
+            }
+            ServerMessage::GameOver { winner } => {
+                who_is_winner.player_number = winner;
+                next_game_state.set(GameState::GameOver);
             }
         }
     }
@@ -81,17 +93,6 @@ pub fn handle_server_messages(
 
 pub fn to_connection_state(mut next_connection_state: ResMut<NextState<ConnectionState>>) {
     next_connection_state.set(ConnectionState::Connected);
-}
-
-pub fn to_disconnected_state(
-    mut next_connection_state: ResMut<NextState<ConnectionState>>,
-    mut client: ResMut<QuinnetClient>,
-    mut player_selection: ResMut<PlayerSelection>,
-) {
-    client.close_connection(player_selection.1).unwrap();
-    player_selection.reset();
-
-    next_connection_state.set(ConnectionState::Idle);
 }
 
 pub fn reset_game_started_timer(mut game_start_timer: ResMut<GameStartTimer>) {

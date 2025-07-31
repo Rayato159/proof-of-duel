@@ -1,28 +1,52 @@
 use bevy::prelude::*;
+use bevy_quinnet::client::QuinnetClient;
+use serde::{Deserialize, Serialize};
 
-use crate::connection::ConnectionState;
+use crate::{
+    ClientMessage, GameState,
+    connection::ConnectionState,
+    player::{PlayerSelection, PlayersCounting},
+    ui::main_menu::MainMenuState,
+};
+
+const WAITING_LIST: [&str; 1] = ["Back"];
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayersCount(pub usize);
 
 #[derive(Component)]
-pub struct MainMenuUI;
+pub struct PlayNowUI;
 
-#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum MainMenuState {
-    #[default]
-    MainMenu,
-    PlayNow,
-    JoinGame,
-    None,
+#[derive(Component)]
+pub struct PlayNowText;
+
+#[derive(Resource)]
+pub struct GameStartTimer {
+    pub timer: Timer,
+    pub active: bool,
 }
 
-const MAIN_MENU_LIST: [&str; 2] = ["Play Now", "Quit"];
+impl GameStartTimer {
+    pub fn new(secs: f32) -> Self {
+        Self {
+            active: false,
+            timer: Timer::from_seconds(secs, TimerMode::Once),
+        }
+    }
 
-pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
+    pub fn reset(&mut self) {
+        self.active = false;
+        self.timer.reset();
+    }
+}
+
+pub fn spawn_play_now_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("fonts/pixeloid_mono.ttf");
     let font_bold = asset_server.load("fonts/pixeloid_mono_bold.ttf");
 
     commands
         .spawn((
-            MainMenuUI,
+            PlayNowUI,
             Node {
                 width: Val::Percent(100.),
                 height: Val::Percent(100.),
@@ -47,19 +71,20 @@ pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                 })
                 .with_children(|parent| {
                     parent.spawn((
-                        Text::new("Proof of Duel"),
+                        PlayNowText,
+                        Text::new("Waiting for players..."),
                         TextColor(Color::WHITE),
                         TextLayout::new_with_justify(JustifyText::Center),
                         TextFont {
                             font: font_bold.clone(),
-                            font_size: 94.,
+                            font_size: 64.,
                             ..Default::default()
                         },
                     ));
                 });
         })
         .with_children(|parent| {
-            MAIN_MENU_LIST.iter().for_each(|label| {
+            WAITING_LIST.iter().for_each(|label| {
                 parent
                     .spawn((
                         Name::new(label.to_string()),
@@ -105,30 +130,44 @@ pub fn spawn_main_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
         });
 }
 
-pub fn main_menu_button_pressed_handler(
-    button_query: Query<(&Interaction, &Name), Changed<Interaction>>,
-    mut next_main_menu_state: ResMut<NextState<MainMenuState>>,
-    mut next_connection_state: ResMut<NextState<ConnectionState>>,
+pub fn update_play_now_text(
+    mut text_query: Query<&mut Text, With<PlayNowText>>,
+    player_counting: Res<PlayersCounting>,
+    game_start_timer: Res<GameStartTimer>,
 ) {
-    for (interaction, name) in button_query.iter() {
-        if *interaction != Interaction::Pressed {
-            continue;
-        }
-
-        match name.as_str() {
-            "Play Now" => {
-                next_main_menu_state.set(MainMenuState::PlayNow);
-            }
-            "Quit" => {
-                next_connection_state.set(ConnectionState::Idle);
-                std::process::exit(0)
-            }
-            _ => return,
+    if !game_start_timer.active {
+        for mut text in text_query.iter_mut() {
+            *text = Text::new(format!("Waiting for players: {}/2", player_counting.0));
         }
     }
 }
 
-pub fn main_menu_ui_interaction(
+pub fn update_game_start_countdown(
+    time: Res<Time>,
+    mut countdown: ResMut<GameStartTimer>,
+    mut text_query: Query<&mut Text, With<PlayNowText>>,
+    mut next_main_menu_state: ResMut<NextState<MainMenuState>>,
+    mut next_game_state: ResMut<NextState<GameState>>,
+) {
+    if !countdown.active {
+        return;
+    }
+
+    countdown.timer.tick(time.delta());
+
+    for mut text in text_query.iter_mut() {
+        let remaining = countdown.timer.remaining_secs().ceil();
+        *text = Text::new(format!("Game starts in: {}", remaining));
+    }
+
+    if countdown.timer.finished() {
+        countdown.active = false;
+        next_main_menu_state.set(MainMenuState::None);
+        next_game_state.set(GameState::InGame);
+    }
+}
+
+pub fn play_now_ui_interaction(
     mut button_query: Query<(&Interaction, &mut BackgroundColor), Changed<Interaction>>,
 ) {
     for (interaction, mut color) in button_query.iter_mut() {
@@ -146,11 +185,44 @@ pub fn main_menu_ui_interaction(
     }
 }
 
-pub fn despawn_main_menu(
-    mut commands: Commands,
-    main_menu_ui_query: Query<Entity, With<MainMenuUI>>,
+pub fn play_now_button_pressed_handler(
+    button_query: Query<(&Interaction, &Name), Changed<Interaction>>,
+    mut next_game_state: ResMut<NextState<GameState>>,
+    mut next_main_menu_state: ResMut<NextState<MainMenuState>>,
+    mut connection_state: ResMut<NextState<ConnectionState>>,
+    mut player_selection: ResMut<PlayerSelection>,
+    mut client: ResMut<QuinnetClient>,
 ) {
-    for entity in main_menu_ui_query.iter() {
+    for (interaction, name) in button_query.iter() {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+
+        match name.as_str() {
+            "Back" => {
+                connection_state.set(ConnectionState::Idle);
+
+                let _ = client
+                    .connection_mut()
+                    .send_message(&ClientMessage::DisconnectPlayer {
+                        client_id: player_selection.1,
+                    });
+
+                player_selection.reset();
+
+                next_main_menu_state.set(MainMenuState::MainMenu);
+                next_game_state.set(GameState::MainMenu);
+            }
+            _ => return,
+        }
+    }
+}
+
+pub fn despawn_play_now_ui(
+    mut commands: Commands,
+    play_now_ui_query: Query<Entity, With<PlayNowUI>>,
+) {
+    for entity in play_now_ui_query.iter() {
         commands.entity(entity).despawn();
     }
 }

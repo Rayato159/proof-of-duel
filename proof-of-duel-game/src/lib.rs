@@ -27,6 +27,8 @@ pub enum GameState {
 pub enum ServerChannel {
     Lobby,
     Shooting,
+    UpdateHeartsStatus,
+    GameOver,
 }
 
 impl Into<ChannelId> for ServerChannel {
@@ -54,6 +56,8 @@ impl ServerChannel {
 pub enum ClientChannel {
     Lobby,
     Shooting,
+    UpdateHeartsStatus,
+    GameOver,
 }
 
 impl Into<ChannelId> for ClientChannel {
@@ -87,9 +91,13 @@ pub enum ServerMessage {
         player_number: usize,
         states: [ShootingStatesMesasge; 5],
     },
-    PlayerHeartsStatus {
+    UpdateHeartsStatus {
         player_1_hearts: usize,
         player_2_hearts: usize,
+        who_was_hit: usize,
+    },
+    GameOver {
+        winner: usize,
     },
 }
 
@@ -99,13 +107,16 @@ pub enum ClientMessage {
         player_number: usize,
         states: [ShootingStatesMesasge; 5],
     },
-    PlayerHeartsStatus {
-        player_1_hearts: u8,
-        player_2_hearts: u8,
+    UpdateHeartsStatus {
+        player_1_hearts: usize,
+        player_2_hearts: usize,
+        who_was_hit: usize,
     },
     GameOver {
-        winners: Vec<usize>,
-        is_game_over: bool,
+        winner: usize,
+    },
+    DisconnectPlayer {
+        client_id: u64,
     },
 }
 

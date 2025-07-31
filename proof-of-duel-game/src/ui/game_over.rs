@@ -1,20 +1,38 @@
 use bevy::prelude::*;
+use bevy_quinnet::client::QuinnetClient;
 
-use crate::{GameState, player::PlayerHertsStatus, ui::main_menu::MainMenuState};
+use crate::{
+    ClientMessage, GameState,
+    connection::ConnectionState,
+    player::{PlayerHertsStatus, PlayerSelection, PlayersCounting, ShootingLock},
+    shooting::ShootingStates,
+    ui::{main_menu::MainMenuState, play_now_ui::GameStartTimer},
+};
 
 #[derive(Component)]
 pub struct GameOverUI;
 
+#[derive(Resource, Debug, Clone, Default)]
+pub struct WhoIsWinner {
+    pub player_number: usize,
+}
+
+impl WhoIsWinner {
+    pub fn reset(&mut self) {
+        self.player_number = 0;
+    }
+}
+
 pub fn spawn_game_over_ui(
     mut commands: Commands,
-    player_herts_status: Res<PlayerHertsStatus>,
+    who_is_winner: Res<WhoIsWinner>,
     asset_server: Res<AssetServer>,
 ) {
     let font_bold = asset_server.load("fonts/pixeloid_mono_bold.ttf");
-    let whos_winner = if player_herts_status.player_1_hearts == 0 {
-        "Player 2 Wins!"
-    } else if player_herts_status.player_2_hearts == 0 {
+    let whos_winner = if who_is_winner.player_number == 1 {
         "Player 1 Wins!"
+    } else if who_is_winner.player_number == 2 {
+        "Player 2 Wins!"
     } else {
         "It's a Draw!"
     };
@@ -115,6 +133,15 @@ pub fn game_over_button_pressed_handler(
     button_query: Query<(&Interaction, &Name), Changed<Interaction>>,
     mut next_game_state: ResMut<NextState<GameState>>,
     mut main_menu_state: ResMut<NextState<MainMenuState>>,
+    mut connection_state: ResMut<NextState<ConnectionState>>,
+    mut player_selection: ResMut<PlayerSelection>,
+    mut player_hearts_status: ResMut<PlayerHertsStatus>,
+    mut players_counting: ResMut<PlayersCounting>,
+    mut client: ResMut<QuinnetClient>,
+    mut game_start_timer: ResMut<GameStartTimer>,
+    mut shooting_states: ResMut<ShootingStates>,
+    mut who_is_winner: ResMut<WhoIsWinner>,
+    mut shooting_lock: ResMut<ShootingLock>,
 ) {
     for (interaction, name) in button_query.iter() {
         if *interaction != Interaction::Pressed {
@@ -123,6 +150,22 @@ pub fn game_over_button_pressed_handler(
 
         match name.as_str() {
             "Back to Main Menu" => {
+                connection_state.set(ConnectionState::Idle);
+
+                let _ = client
+                    .connection_mut()
+                    .send_message(&ClientMessage::DisconnectPlayer {
+                        client_id: player_selection.1,
+                    });
+
+                player_selection.reset();
+                player_hearts_status.reset();
+                players_counting.reset();
+                game_start_timer.reset();
+                shooting_states.reset();
+                who_is_winner.reset();
+                shooting_lock.reset();
+
                 main_menu_state.set(MainMenuState::MainMenu);
                 next_game_state.set(GameState::MainMenu);
             }
