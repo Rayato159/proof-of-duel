@@ -115,9 +115,6 @@ pub enum ClientMessage {
     GameOver {
         winner: usize,
     },
-    DisconnectPlayer {
-        client_id: u64,
-    },
 }
 
 pub mod cameras;

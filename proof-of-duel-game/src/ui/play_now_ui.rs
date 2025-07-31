@@ -1,9 +1,8 @@
 use bevy::prelude::*;
-use bevy_quinnet::client::QuinnetClient;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ClientMessage, GameState,
+    GameState,
     connection::ConnectionState,
     player::{PlayerSelection, PlayersCounting},
     ui::main_menu::MainMenuState,
@@ -191,7 +190,6 @@ pub fn play_now_button_pressed_handler(
     mut next_main_menu_state: ResMut<NextState<MainMenuState>>,
     mut connection_state: ResMut<NextState<ConnectionState>>,
     mut player_selection: ResMut<PlayerSelection>,
-    mut client: ResMut<QuinnetClient>,
 ) {
     for (interaction, name) in button_query.iter() {
         if *interaction != Interaction::Pressed {
@@ -201,12 +199,6 @@ pub fn play_now_button_pressed_handler(
         match name.as_str() {
             "Back" => {
                 connection_state.set(ConnectionState::Idle);
-
-                let _ = client
-                    .connection_mut()
-                    .send_message(&ClientMessage::DisconnectPlayer {
-                        client_id: player_selection.1,
-                    });
 
                 player_selection.reset();
 

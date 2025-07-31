@@ -1,8 +1,7 @@
 use bevy::prelude::*;
-use bevy_quinnet::client::QuinnetClient;
 
 use crate::{
-    ClientMessage, GameState,
+    GameState,
     connection::ConnectionState,
     player::{PlayerHertsStatus, PlayerSelection, PlayersCounting, ShootingLock},
     shooting::ShootingStates,
@@ -137,7 +136,6 @@ pub fn game_over_button_pressed_handler(
     mut player_selection: ResMut<PlayerSelection>,
     mut player_hearts_status: ResMut<PlayerHertsStatus>,
     mut players_counting: ResMut<PlayersCounting>,
-    mut client: ResMut<QuinnetClient>,
     mut game_start_timer: ResMut<GameStartTimer>,
     mut shooting_states: ResMut<ShootingStates>,
     mut who_is_winner: ResMut<WhoIsWinner>,
@@ -151,12 +149,6 @@ pub fn game_over_button_pressed_handler(
         match name.as_str() {
             "Back to Main Menu" => {
                 connection_state.set(ConnectionState::Idle);
-
-                let _ = client
-                    .connection_mut()
-                    .send_message(&ClientMessage::DisconnectPlayer {
-                        client_id: player_selection.1,
-                    });
 
                 player_selection.reset();
                 player_hearts_status.reset();

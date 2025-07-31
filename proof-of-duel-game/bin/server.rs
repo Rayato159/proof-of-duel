@@ -30,7 +30,7 @@ fn start_listening(mut server: ResMut<QuinnetServer>) {
         .unwrap();
 }
 
-fn handle_client_messages(mut server: ResMut<QuinnetServer>, mut players: ResMut<Players>) {
+fn handle_client_messages(mut server: ResMut<QuinnetServer>, players: Res<Players>) {
     let endpoint = server.endpoint_mut();
     for client_id in endpoint.clients() {
         while let Some((_, message)) = endpoint.try_receive_message_from::<ClientMessage>(client_id)
@@ -88,14 +88,6 @@ fn handle_client_messages(mut server: ResMut<QuinnetServer>, mut players: ResMut
                         endpoint
                             .broadcast_message(&ServerMessage::GameOver { winner })
                             .unwrap();
-                    }
-                }
-                ClientMessage::DisconnectPlayer { client_id } => {
-                    if players.map.contains_key(&client_id) {
-                        for client_id in endpoint.clients() {
-                            let _ = endpoint.disconnect_client(client_id);
-                            players.map.remove(&client_id);
-                        }
                     }
                 }
             }
