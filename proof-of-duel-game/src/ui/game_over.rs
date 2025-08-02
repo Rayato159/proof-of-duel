@@ -26,12 +26,17 @@ pub fn spawn_game_over_ui(
     mut commands: Commands,
     who_is_winner: Res<WhoIsWinner>,
     asset_server: Res<AssetServer>,
+    player_selection: Res<PlayerSelection>,
 ) {
     let font_bold = asset_server.load("fonts/pixeloid_mono_bold.ttf");
-    let whos_winner = if who_is_winner.player_number == 1 {
-        "Player 1 Wins!"
-    } else if who_is_winner.player_number == 2 {
-        "Player 2 Wins!"
+    let whos_winner = if who_is_winner.player_number == 1 && player_selection.0 == 1 {
+        "You Win!"
+    } else if who_is_winner.player_number == 2 && player_selection.0 == 2 {
+        "You Win!"
+    } else if who_is_winner.player_number == 1 && player_selection.0 == 2 {
+        "You Lose!"
+    } else if who_is_winner.player_number == 2 && player_selection.0 == 1 {
+        "You Lose!"
     } else {
         "It's a Draw!"
     };

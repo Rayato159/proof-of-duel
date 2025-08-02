@@ -100,6 +100,12 @@ pub fn setup_player_1(
 ) {
     let aseprite = asset_server.load("sprites/Player1.aseprite");
 
+    let player_text = if player_selection.0 == 1 {
+        "You"
+    } else {
+        "Player 1"
+    };
+
     commands
         .spawn((
             Player::new(player_selection.1, 1, "".to_string()),
@@ -129,7 +135,7 @@ pub fn setup_player_1(
         })
         .with_children(|parent| {
             parent.spawn((
-                Text2d::new("Player 1"),
+                Text2d::new(player_text),
                 TextColor(Color::WHITE),
                 TextLayout::new_with_justify(JustifyText::Center),
                 TextFont {
@@ -148,6 +154,12 @@ pub fn setup_player_2(
     player_selection: Res<PlayerSelection>,
 ) {
     let aseprite = asset_server.load("sprites/Player2.aseprite");
+
+    let player_text = if player_selection.0 == 2 {
+        "You"
+    } else {
+        "Player 2"
+    };
 
     commands
         .spawn((
@@ -178,7 +190,7 @@ pub fn setup_player_2(
         })
         .with_children(|parent| {
             parent.spawn((
-                Text2d::new("Player 2"),
+                Text2d::new(player_text),
                 TextColor(Color::WHITE),
                 TextLayout::new_with_justify(JustifyText::Center),
                 TextFont {
