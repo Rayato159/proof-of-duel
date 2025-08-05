@@ -1,0 +1,4 @@
+@import "tailwindcss";
+
+/* Solana Wallet Adapter CSS */
+@import "@solana/wallet-adapter-react-ui/styles.css";

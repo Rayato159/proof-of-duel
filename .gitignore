@@ -1,0 +1,31 @@
+/*/*.env
+/*/target
+
+# dependencies
+/proof-of-duel-frontend/node_modules
+/proof-of-duel-frontend/.pnp
+/proof-of-duel-frontend/.pnp.js
+
+# testing
+/proof-of-duel-frontend/coverage
+
+# next.js
+/proof-of-duel-frontend/.next/
+/proof-of-duel-frontend/out/
+
+# production
+/proof-of-duel-frontend/build
+
+# misc
+/proof-of-duel-frontend/.DS_Store
+
+# debug
+/proof-of-duel-frontend/npm-debug.log*
+/proof-of-duel-frontend/yarn-debug.log*
+/proof-of-duel-frontend/yarn-error.log*
+
+# local env files
+/proof-of-duel-frontend/.env.local
+/proof-of-duel-frontend/.env.development.local
+/proof-of-duel-frontend/.env.test.local
+/proof-of-duel-frontend/.env.production.local
