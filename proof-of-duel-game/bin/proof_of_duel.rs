@@ -1,3 +1,10 @@
+use axum::{
+    http::{
+        HeaderValue, Method,
+        header::{ACCEPT, CONTENT_TYPE},
+    },
+    routing::post,
+};
 use bevy::{
     audio::{AudioPlugin, SpatialScale},
     log::{Level, LogPlugin},
@@ -7,13 +14,16 @@ use bevy::{
 use bevy_aseprite_ultra::prelude::*;
 // use bevy_fps_counter::FpsCounterPlugin;
 use bevy_quinnet::client::QuinnetClientPlugin;
+use bevy_webserver::{BevyWebServerPlugin, RouterAppExt, WebServerConfig};
 use proof_of_duel_game::{
     AUDIO_SCALE, GameState, cameras,
+    civic_auth::{self, AuthFileWatcher},
     connection::{self, ConnectionState, IsConnected},
     player::{self, PlayerHertsStatus, PlayerHit, PlayerSelection, PlayersCounting, ShootingLock},
     scene,
     shooting::{self, CheckShootingKeyEvent, ResetKeysEvent, ShootingEvent, ShootingStates},
     sounds,
+    stats::{self, StatsData, StatsFileWatcher},
     ui::{
         self,
         game_over::WhoIsWinner,
@@ -23,6 +33,7 @@ use proof_of_duel_game::{
         profile::ProfileData,
     },
 };
+use tower_http::cors::CorsLayer;
 
 fn main() {
     App::new()
@@ -39,6 +50,13 @@ fn main() {
         .insert_resource(IsHost::default())
         .insert_resource(IsConnected::default())
         .insert_resource(ProfileData::default())
+        .insert_resource(AuthFileWatcher::default())
+        .insert_resource(StatsFileWatcher::default())
+        .insert_resource(StatsData::default())
+        .insert_resource(WebServerConfig {
+            port: 8080,
+            ..Default::default()
+        })
         .add_plugins((DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
@@ -67,6 +85,21 @@ fn main() {
         // .add_plugins(FpsCounterPlugin)
         .add_plugins(AsepriteUltraPlugin)
         .add_plugins(QuinnetClientPlugin::default())
+        .add_plugins(BevyWebServerPlugin)
+        .route("/login", post(civic_auth::login))
+        .layer(
+            CorsLayer::new()
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::PATCH,
+                    Method::DELETE,
+                ])
+                .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
+                .allow_credentials(true)
+                .allow_headers([ACCEPT, CONTENT_TYPE]),
+        )
         .init_state::<GameState>()
         .init_state::<MainMenuState>()
         .init_state::<ConnectionState>()
@@ -76,6 +109,16 @@ fn main() {
         .add_event::<CheckShootingKeyEvent>()
         .add_event::<PlayerHit>()
         .add_systems(Startup, ui::profile::spawn_profile_ui)
+        .add_systems(
+            Update,
+            (
+                civic_auth::poll_auth_file,
+                stats::poll_stats_file,
+                ui::profile::update_username,
+                ui::profile::update_win,
+                ui::profile::update_loss,
+            ),
+        )
         .add_systems(
             OnEnter(MainMenuState::MainMenu),
             (

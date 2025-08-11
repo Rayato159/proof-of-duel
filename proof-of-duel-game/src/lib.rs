@@ -154,9 +154,11 @@ pub enum ClientMessage {
 }
 
 pub mod cameras;
+pub mod civic_auth;
 pub mod connection;
 pub mod player;
 pub mod scene;
 pub mod shooting;
 pub mod sounds;
+pub mod stats;
 pub mod ui;

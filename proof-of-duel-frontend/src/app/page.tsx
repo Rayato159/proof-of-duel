@@ -1,5 +1,5 @@
-import { TitleBar } from "./titleBar";
-import Wallet from "./wallet";
+import { TitleBar } from "./TitleBar";
+import Wallet from "./Wallet";
 
 export default async function Home() {
   return (

@@ -17,6 +17,9 @@ uuid = { version = "1.17.0", features = ["v4", "fast-rng", "serde", "js"] }
 arboard = "3.6.0"
 webbrowser = "1.0.5"
 dotenvy = "0.15.7"
+bevy_webserver = "0.2.1"
+axum = "0.8.4"
+tower-http = { version = "0.6.6", features = ["cors"]}
 
 [[bin]]
 path = "./bin/proof_of_duel.rs"

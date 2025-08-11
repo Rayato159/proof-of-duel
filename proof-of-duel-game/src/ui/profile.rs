@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::stats::StatsData;
+
 #[derive(Component)]
 pub struct ProfileUI;
 
@@ -7,13 +9,16 @@ pub struct ProfileUI;
 pub struct UserNameText;
 
 #[derive(Component)]
-pub struct BalanceText;
+pub struct WinText;
+
+#[derive(Component)]
+pub struct LossText;
 
 #[derive(Resource, Default, Clone)]
 pub struct ProfileData {
-    public_key: String,
-    username: String,
-    balance: u64,
+    pub logged_in: bool,
+    pub public_key: String,
+    pub username: String,
 }
 
 pub fn spawn_profile_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -60,7 +65,7 @@ pub fn spawn_profile_ui(mut commands: Commands, asset_server: Res<AssetServer>) 
                 .with_children(|parent| {
                     parent.spawn((
                         UserNameText,
-                        Text::new("Username: Unknown"),
+                        Text::new("Username: "),
                         TextColor(Color::WHITE),
                         TextLayout::new_with_justify(JustifyText::Left),
                         TextFont {
@@ -97,8 +102,46 @@ pub fn spawn_profile_ui(mut commands: Commands, asset_server: Res<AssetServer>) 
                 ))
                 .with_children(|parent| {
                     parent.spawn((
-                        BalanceText,
-                        Text::new("Coin: 0"),
+                        WinText,
+                        Text::new("Win: 0"),
+                        TextColor(Color::WHITE),
+                        TextLayout::new_with_justify(JustifyText::Left),
+                        TextFont {
+                            font: font.clone(),
+                            font_size: 28.,
+                            ..Default::default()
+                        },
+                    ));
+                });
+        })
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Node {
+                        display: Display::Flex,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        position_type: PositionType::Relative,
+                        padding: UiRect {
+                            left: Val::Px(8.),
+                            right: Val::Px(8.),
+                            top: Val::Px(8.),
+                            bottom: Val::Px(8.),
+                        },
+                        border: UiRect {
+                            left: Val::Px(2.),
+                            right: Val::Px(2.),
+                            top: Val::Px(2.),
+                            bottom: Val::Px(2.),
+                        },
+                        ..Default::default()
+                    },
+                    BorderColor(Color::WHITE),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        LossText,
+                        Text::new("Loss: 0"),
                         TextColor(Color::WHITE),
                         TextLayout::new_with_justify(JustifyText::Left),
                         TextFont {
@@ -109,4 +152,25 @@ pub fn spawn_profile_ui(mut commands: Commands, asset_server: Res<AssetServer>) 
                     ));
                 });
         });
+}
+
+pub fn update_username(
+    profile_data: Res<ProfileData>,
+    mut query: Query<&mut Text, With<UserNameText>>,
+) {
+    for mut text in query.iter_mut() {
+        *text = format!("Username: {}", profile_data.username.to_owned()).into();
+    }
+}
+
+pub fn update_win(stats_data: Res<StatsData>, mut query: Query<&mut Text, With<WinText>>) {
+    for mut text in query.iter_mut() {
+        *text = format!("Win: {}", stats_data.win.to_owned()).into();
+    }
+}
+
+pub fn update_loss(stats_data: Res<StatsData>, mut query: Query<&mut Text, With<LossText>>) {
+    for mut text in query.iter_mut() {
+        *text = format!("Loss: {}", stats_data.loss.to_owned()).into();
+    }
 }

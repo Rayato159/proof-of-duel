@@ -10,6 +10,8 @@ import {
   WalletProvider,
 } from "@solana/wallet-adapter-react";
 
+import AuthHandler from "./AuthHandler";
+
 interface ProvidersProps {
   children: React.ReactNode;
 }
@@ -23,6 +25,7 @@ export default function Providers({ children }: ProvidersProps) {
         <WalletModalProvider>
           <CivicAuthProvider>
             <WalletMultiButton />
+            <AuthHandler />
             {children}
           </CivicAuthProvider>
         </WalletModalProvider>
