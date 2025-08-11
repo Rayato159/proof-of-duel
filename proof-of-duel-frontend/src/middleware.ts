@@ -1,6 +1,8 @@
 import { authMiddleware } from '@civic/auth-web3/nextjs/middleware'
 
-export default authMiddleware();
+export default authMiddleware({
+    include: ['/api/:path*'],
+});
 
 export const config = {
     // include the paths you wish to secure here

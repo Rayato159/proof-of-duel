@@ -25,7 +25,7 @@ const AuthHandler = () => {
       })
         .then(async (response) => {
           if (response.ok) {
-            console.log("Request successful", await response.json());
+            console.log("Login successful");
           } else {
             console.error("Request failed", response);
           }
