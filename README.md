@@ -46,6 +46,7 @@ Competitive rhythm-combo shooting, similar to _Patapon_ and _Osu!_.
 **Phase N:** Elemental system for bullets & armor
 
 ## 🔨 Tech Stack
+
 - **Game Engine:** Bevy
 - **Solana Program:** Solana Anchor
 - **Authentication:** Civic Auth
@@ -53,8 +54,86 @@ Competitive rhythm-combo shooting, similar to _Patapon_ and _Osu!_.
 - **Music:** FL Studio
 - **Pixel Art:** Aseprite
 
+## 💀 How to Play (Build From Source)
+
+Before running the game, ensure you have the following installed:
+
+- [Rust](https://www.rust-lang.org/tools/install)
+- [Node.js](https://nodejs.org/en/download/)
+
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/Rayato159/proof-of-duel.git
+   ```
+
+2. **Navigate to the project directory:**
+
+   ```bash
+   cd proof-of-duel
+   ```
+
+3. **Install Frontend Dependencies:**
+
+   Open a new terminal and navigate back to the main project directory:
+
+   ```bash
+   cd proof-of-duel-frontend
+   npm install
+   ```
+
+   Create a `.env` file in the root directory with the following content:
+
+   ```env
+   PRIVATE_KEY="xxxxxx"
+   ```
+
+   Start the Next.js development server:
+
+   ```bash
+   npm run dev
+   ```
+
+   The frontend will be available at `http://localhost:3000`.
+
+4. **Build and Run the Game:**
+
+   Open a new terminal and navigate back to the main project directory:
+
+   ```bash
+    cd proof-of-duel-game
+   ```
+
+   Build the game using:
+
+   ```bash
+    cargo build
+   ```
+
+   Create a `.env` file in the root directory with the following content:
+
+   ```env
+   IP_ADDRESS="127.0.0.1"
+   ```
+
+   Start the game server:
+
+   ```bash
+    cargo run --bin server
+   ```
+
+   Start the client in a separate terminal:
+
+   ```bash
+    cargo run --bin proof_of_duel
+   ```
+
+   You can run multiple clients in another terminals to simulate multiplayer matches.
+
 ## 📜 License
+
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
 
 ## 👀 Game Design Document
+
 For a detailed game design document, see [ProofOfDuelGDD.pdf](./ProofOfDuelGDD.pdf).
