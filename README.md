@@ -1,6 +1,6 @@
 # Proof of Duel 🔫
 
-![Proof of Duel Logo](./misc/PofCover.png)
+![Proof of Duel Logo](./misc/PofCoverSmall.png)
 
 **Author:** Ruangyot Nanchiang  
 **Demo:** [YouTube](https://www.youtube.com/watch?v=jYE64huwxVU)  
