@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@civic/auth-web3": "^0.7.1",
+    "@coral-xyz/anchor": "^0.31.1",
     "@solana/wallet-adapter-react": "^0.15.39",
     "@solana/wallet-adapter-react-ui": "^0.9.39",
     "@tailwindcss/cli": "^4.1.11",

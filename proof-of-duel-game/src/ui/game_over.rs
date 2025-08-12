@@ -1,11 +1,12 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, tasks::AsyncComputeTaskPool};
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    GameState,
+    GameState, LoggedInState,
     connection::ConnectionState,
     player::{PlayerHertsStatus, PlayerSelection, PlayersCounting, ShootingLock},
     shooting::ShootingStates,
-    ui::{main_menu::MainMenuState, play_now_ui::GameStartTimer},
+    ui::{main_menu::MainMenuState, play_now_ui::GameStartTimer, profile::ProfileData},
 };
 
 #[derive(Component)]
@@ -22,20 +23,110 @@ impl WhoIsWinner {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuelWinPayload {
+    pub public_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuelLossPayload {
+    pub public_key: String,
+}
+
 pub fn spawn_game_over_ui(
     mut commands: Commands,
     who_is_winner: Res<WhoIsWinner>,
     asset_server: Res<AssetServer>,
     player_selection: Res<PlayerSelection>,
+    player_auth_data: Res<ProfileData>,
 ) {
+    let thread_pool = AsyncComputeTaskPool::get();
+
     let font_bold = asset_server.load("fonts/pixeloid_mono_bold.ttf");
     let whos_winner = if who_is_winner.player_number == 1 && player_selection.0 == 1 {
+        let public_key = player_auth_data.public_key.clone();
+
+        thread_pool
+            .spawn(async move {
+                let url = "http://localhost:3000/api/duel-win";
+
+                match ureq::post(url).send_json(DuelWinPayload { public_key }) {
+                    Ok(response) if response.status() == 200 => {
+                        info!("✅ Duel win recorded successfully");
+                    }
+                    Ok(response) => {
+                        error!("❌ Duel win failed to record: {}", response.status());
+                    }
+                    Err(e) => {
+                        error!("❌ Error sending to RPC: {:?}", e);
+                    }
+                }
+            })
+            .detach();
+
         "You Win!"
     } else if who_is_winner.player_number == 2 && player_selection.0 == 2 {
+        let public_key = player_auth_data.public_key.clone();
+
+        thread_pool
+            .spawn(async move {
+                let url = "http://localhost:3000/api/duel-win";
+                match ureq::post(url).send_json(DuelWinPayload { public_key }) {
+                    Ok(response) if response.status() == 200 => {
+                        info!("✅ Duel win recorded successfully");
+                    }
+                    Ok(response) => {
+                        error!("❌ Duel win failed to record: {}", response.status());
+                    }
+                    Err(e) => {
+                        error!("❌ Error sending to RPC: {:?}", e);
+                    }
+                }
+            })
+            .detach();
+
         "You Win!"
     } else if who_is_winner.player_number == 1 && player_selection.0 == 2 {
+        let public_key = player_auth_data.public_key.clone();
+
+        thread_pool
+            .spawn(async move {
+                let url = "http://localhost:3000/api/duel-loss";
+                match ureq::post(url).send_json(DuelLossPayload { public_key }) {
+                    Ok(response) if response.status() == 200 => {
+                        info!("✅ Duel loss recorded successfully");
+                    }
+                    Ok(response) => {
+                        error!("❌ Duel loss failed to record: {}", response.status());
+                    }
+                    Err(e) => {
+                        error!("❌ Error sending to RPC: {:?}", e);
+                    }
+                }
+            })
+            .detach();
+
         "You Lose!"
     } else if who_is_winner.player_number == 2 && player_selection.0 == 1 {
+        let public_key = player_auth_data.public_key.clone();
+
+        thread_pool
+            .spawn(async move {
+                let url = "http://localhost:3000/api/duel-loss";
+                match ureq::post(url).send_json(DuelLossPayload { public_key }) {
+                    Ok(response) if response.status() == 200 => {
+                        info!("✅ Duel loss recorded successfully");
+                    }
+                    Ok(response) => {
+                        error!("❌ Duel loss failed to record: {}", response.status());
+                    }
+                    Err(e) => {
+                        error!("❌ Error sending to RPC: {:?}", e);
+                    }
+                }
+            })
+            .detach();
+
         "You Lose!"
     } else {
         "It's a Draw!"
@@ -145,6 +236,7 @@ pub fn game_over_button_pressed_handler(
     mut shooting_states: ResMut<ShootingStates>,
     mut who_is_winner: ResMut<WhoIsWinner>,
     mut shooting_lock: ResMut<ShootingLock>,
+    mut next_logged_in_state: ResMut<NextState<LoggedInState>>,
 ) {
     for (interaction, name) in button_query.iter() {
         if *interaction != Interaction::Pressed {
@@ -165,6 +257,7 @@ pub fn game_over_button_pressed_handler(
 
                 main_menu_state.set(MainMenuState::MainMenu);
                 next_game_state.set(GameState::MainMenu);
+                next_logged_in_state.set(LoggedInState::LoggedIn);
             }
             _ => return,
         }

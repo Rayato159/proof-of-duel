@@ -1,23 +1,28 @@
-use std::{path::PathBuf, time::SystemTime};
+use std::sync::{Arc, LazyLock, RwLock};
 
 use axum::{Json, http::StatusCode, response::IntoResponse};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::ui::profile::ProfileData;
+use crate::{LoggedInState, ui::profile::ProfileData};
+
+#[derive(Default)]
+struct AuthState {
+    public_key: String,
+    username: String,
+}
+
+static AUTH_STATE: LazyLock<Arc<RwLock<AuthState>>> =
+    LazyLock::new(|| Arc::new(RwLock::new(AuthState::default())));
 
 #[derive(Resource)]
-pub struct AuthFileWatcher {
-    pub path: PathBuf,
-    pub last_mtime: Option<SystemTime>,
+pub struct AuthStateWatcher {
     pub timer: Timer,
 }
 
-impl Default for AuthFileWatcher {
+impl Default for AuthStateWatcher {
     fn default() -> Self {
         Self {
-            path: PathBuf::from("./auth.json"),
-            last_mtime: None,
             timer: Timer::from_seconds(0.5, TimerMode::Repeating),
         }
     }
@@ -30,66 +35,38 @@ pub struct AuthPayload {
 }
 
 pub async fn login(Json(auth_payload): Json<AuthPayload>) -> impl IntoResponse {
-    let auth_payload_str = match serde_json::to_string(&auth_payload) {
-        Ok(s) => s,
-        Err(e) => {
-            error!("Failed to serialize auth payload: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Serialization error").into_response();
-        }
-    };
-
-    if let Err(e) = std::fs::write("./auth.json", auth_payload_str) {
-        error!("Failed to write auth file: {}", e);
-        return (StatusCode::INTERNAL_SERVER_ERROR, "File write error").into_response();
-    }
+    let mut auth_state = AUTH_STATE.write().unwrap();
+    auth_state.public_key = auth_payload.public_key.clone();
+    auth_state.username = auth_payload.username.clone();
 
     (StatusCode::OK, "OK").into_response()
 }
 
-pub fn poll_auth_file(
+pub fn poll_auth_state(
     time: Res<Time>,
-    mut watcher: ResMut<AuthFileWatcher>,
+    mut watcher: ResMut<AuthStateWatcher>,
     mut profile_data: ResMut<ProfileData>,
+    mut next_logged_in_sate: ResMut<NextState<LoggedInState>>,
 ) {
+    if profile_data.logged_in {
+        return;
+    }
+
     if !watcher.timer.tick(time.delta()).finished() {
         return;
     }
 
-    let path = watcher.path.clone();
+    let auth_state = AUTH_STATE.read().unwrap();
 
-    if !path.exists() {
-        if let Err(e) = std::fs::write(&path, "") {
-            error!("Failed to create auth file: {}", e);
-        } else {
-            info!("Created empty auth file at {:?}", path);
-        }
-    }
+    if !auth_state.public_key.is_empty() && !auth_state.username.is_empty() {
+        profile_data.logged_in = true;
+        profile_data.public_key = auth_state.public_key.clone();
+        profile_data.username = auth_state.username.clone();
 
-    if let Ok(meta) = std::fs::metadata(&path) {
-        if let Ok(mtime) = meta.modified() {
-            let should_read = watcher.last_mtime.map(|t| t != mtime).unwrap_or(true);
-
-            if should_read {
-                if let Ok(bytes) = std::fs::read(&path) {
-                    if let Ok(payload) = serde_json::from_slice::<AuthPayload>(&bytes) {
-                        profile_data.logged_in = true;
-                        profile_data.public_key = payload.public_key;
-                        profile_data.username = payload.username;
-
-                        info!(
-                            "Auth OK -> user={:?}, pk={:?}",
-                            profile_data.username, profile_data.public_key
-                        );
-
-                        let _ = std::fs::remove_file(&path);
-                        watcher.last_mtime = None;
-
-                        return;
-                    }
-                }
-
-                watcher.last_mtime = Some(mtime);
-            }
-        }
+        next_logged_in_sate.set(LoggedInState::LoggedIn);
+    } else {
+        profile_data.logged_in = false;
+        profile_data.public_key.clear();
+        profile_data.username.clear();
     }
 }

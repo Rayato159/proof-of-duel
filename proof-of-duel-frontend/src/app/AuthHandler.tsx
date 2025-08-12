@@ -1,12 +1,15 @@
 "use client";
 
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useUser } from "@civic/auth/react";
 import { useEffect } from "react";
+import { program } from "./anchor/anchor";
+import * as anchor from "@coral-xyz/anchor";
 
 const AuthHandler = () => {
-  const { publicKey } = useWallet();
+  const { publicKey, sendTransaction } = useWallet();
   const { user } = useUser();
+  const { connection } = useConnection();
 
   useEffect(() => {
     if (publicKey && user?.name) {
@@ -26,6 +29,47 @@ const AuthHandler = () => {
         .then(async (response) => {
           if (response.ok) {
             console.log("Login successful");
+
+            if (!publicKey) {
+              console.error("Wallet not connected");
+              return;
+            }
+
+            const [playerPda] = anchor.web3.PublicKey.findProgramAddressSync(
+              [Buffer.from("player"), publicKey.toBuffer()],
+              program.programId
+            );
+
+            // Check if player data already exists
+            let playerData = await program.account.player.fetch(playerPda);
+            if (playerData) {
+              console.log("Player data already exists:", playerData);
+              return;
+            }
+
+            console.log("Player PDA:", playerPda.toString());
+
+            try {
+              const transaction = await program.methods
+                .initializePlayer()
+                .accountsPartial({
+                  player: playerPda,
+                  signer: publicKey,
+                  systemProgram: anchor.web3.SystemProgram.programId,
+                })
+                .transaction();
+
+              const transactionSignature = await sendTransaction(
+                transaction,
+                connection
+              );
+
+              console.log(
+                `View on explorer: https://solana.fm/tx/${transactionSignature}?cluster=devnet`
+              );
+            } catch (error) {
+              console.error("Error:", error);
+            }
           } else {
             console.error("Request failed", response);
           }

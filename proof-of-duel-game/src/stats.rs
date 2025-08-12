@@ -1,8 +1,19 @@
-use std::{path::PathBuf, time::SystemTime};
+use std::sync::{Arc, LazyLock, RwLock};
 
 use axum::{Json, http::StatusCode, response::IntoResponse};
-use bevy::prelude::*;
+use bevy::{prelude::*, tasks::AsyncComputeTaskPool};
 use serde::{Deserialize, Serialize};
+
+use crate::ui::profile::{DuelInfoPayload, ProfileData};
+
+#[derive(Default)]
+struct StatsState {
+    pub win: u32,
+    pub loss: u32,
+}
+
+static STATS_STATE: LazyLock<Arc<RwLock<StatsState>>> =
+    LazyLock::new(|| Arc::new(RwLock::new(StatsState::default())));
 
 #[derive(Resource, Default, Clone)]
 pub struct StatsData {
@@ -11,18 +22,14 @@ pub struct StatsData {
 }
 
 #[derive(Resource)]
-pub struct StatsFileWatcher {
-    pub path: PathBuf,
-    pub last_mtime: Option<SystemTime>,
+pub struct StatsStateWatcher {
     pub timer: Timer,
 }
 
-impl Default for StatsFileWatcher {
+impl Default for StatsStateWatcher {
     fn default() -> Self {
         Self {
-            path: PathBuf::from("./stats.json"),
-            last_mtime: None,
-            timer: Timer::from_seconds(0.5, TimerMode::Repeating),
+            timer: Timer::from_seconds(3.0, TimerMode::Repeating),
         }
     }
 }
@@ -33,63 +40,72 @@ pub struct StatsPayload {
     pub loss: u32,
 }
 
-pub async fn update_stats(Json(stats_payload): Json<StatsPayload>) -> impl IntoResponse {
-    let stats_payload_str = match serde_json::to_string(&stats_payload) {
-        Ok(s) => s,
-        Err(e) => {
-            error!("Failed to serialize auth payload: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "Serialization error").into_response();
-        }
-    };
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatsResponse {
+    pub win: u32,
+    pub loss: u32,
+}
 
-    if let Err(e) = std::fs::write("./stats.json", stats_payload_str) {
-        error!("Failed to write auth file: {}", e);
-        return (StatusCode::INTERNAL_SERVER_ERROR, "File write error").into_response();
-    }
+pub async fn update_stats(Json(stats_payload): Json<StatsPayload>) -> impl IntoResponse {
+    let mut stats_state = STATS_STATE.write().unwrap();
+    stats_state.win = stats_payload.win;
+    stats_state.loss = stats_payload.loss;
 
     (StatusCode::OK, "OK").into_response()
 }
 
-pub fn poll_stats_file(
+pub fn get_stats_scheduler(
     time: Res<Time>,
-    mut watcher: ResMut<StatsFileWatcher>,
-    mut stats_data: ResMut<StatsData>,
+    mut watcher: ResMut<StatsStateWatcher>,
+    profile_data: Res<ProfileData>,
 ) {
+    if !profile_data.logged_in {
+        return;
+    }
+
     if !watcher.timer.tick(time.delta()).finished() {
         return;
     }
 
-    let path = watcher.path.clone();
+    let thread_pool = AsyncComputeTaskPool::get();
+    let public_key = profile_data.public_key.clone();
 
-    if !path.exists() {
-        if let Err(e) = std::fs::write(&path, "") {
-            error!("Failed to create auth file: {}", e);
-        } else {
-            info!("Created empty auth file at {:?}", path);
-        }
+    thread_pool
+        .spawn(async move {
+            let url = "http://localhost:3000/api/duel-info";
+            match ureq::post(url).send_json(DuelInfoPayload { public_key }) {
+                Ok(response) if response.status() == 200 => {
+                    info!("✅ Duel loss recorded successfully");
+                }
+                Ok(response) => {
+                    error!("❌ Duel loss failed to record: {}", response.status());
+                }
+                Err(e) => {
+                    error!("❌ Error sending to RPC: {:?}", e);
+                }
+            }
+        })
+        .detach();
+}
+
+pub fn poll_stats_state(
+    time: Res<Time>,
+    mut watcher: ResMut<StatsStateWatcher>,
+    mut stats_data: ResMut<StatsData>,
+    profile_data: Res<ProfileData>,
+) {
+    if !profile_data.logged_in {
+        return;
     }
 
-    if let Ok(meta) = std::fs::metadata(&path) {
-        if let Ok(mtime) = meta.modified() {
-            let should_read = watcher.last_mtime.map(|t| t != mtime).unwrap_or(true);
+    if !watcher.timer.tick(time.delta()).finished() {
+        return;
+    }
 
-            if should_read {
-                if let Ok(bytes) = std::fs::read(&path) {
-                    if let Ok(payload) = serde_json::from_slice::<StatsPayload>(&bytes) {
-                        stats_data.win = payload.loss;
-                        stats_data.loss = payload.win;
+    let stats_state = STATS_STATE.read().unwrap();
 
-                        info!("Stats OK -> win={}, loss={}", payload.win, payload.loss);
-
-                        let _ = std::fs::remove_file(&path);
-                        watcher.last_mtime = None;
-
-                        return;
-                    }
-                }
-
-                watcher.last_mtime = Some(mtime);
-            }
-        }
+    if stats_state.win != stats_data.win || stats_state.loss != stats_data.loss {
+        stats_data.win = stats_state.win;
+        stats_data.loss = stats_state.loss;
     }
 }

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::stats::StatsData;
 
@@ -19,6 +20,17 @@ pub struct ProfileData {
     pub logged_in: bool,
     pub public_key: String,
     pub username: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuelInfoPayload {
+    pub public_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuelInfoResponse {
+    pub win: u32,
+    pub loss: u32,
 }
 
 pub fn spawn_profile_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -163,13 +175,29 @@ pub fn update_username(
     }
 }
 
-pub fn update_win(stats_data: Res<StatsData>, mut query: Query<&mut Text, With<WinText>>) {
+pub fn update_win(
+    stats_data: Res<StatsData>,
+    mut query: Query<&mut Text, With<WinText>>,
+    profile_data: Res<ProfileData>,
+) {
+    if !profile_data.logged_in {
+        return;
+    }
+
     for mut text in query.iter_mut() {
         *text = format!("Win: {}", stats_data.win.to_owned()).into();
     }
 }
 
-pub fn update_loss(stats_data: Res<StatsData>, mut query: Query<&mut Text, With<LossText>>) {
+pub fn update_loss(
+    stats_data: Res<StatsData>,
+    mut query: Query<&mut Text, With<LossText>>,
+    profile_data: Res<ProfileData>,
+) {
+    if !profile_data.logged_in {
+        return;
+    }
+
     for mut text in query.iter_mut() {
         *text = format!("Loss: {}", stats_data.loss.to_owned()).into();
     }

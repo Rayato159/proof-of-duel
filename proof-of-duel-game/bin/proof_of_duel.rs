@@ -1,29 +1,25 @@
 use axum::{
-    http::{
-        HeaderValue, Method,
-        header::{ACCEPT, CONTENT_TYPE},
-    },
+    http::{HeaderValue, Method},
     routing::post,
 };
 use bevy::{
     audio::{AudioPlugin, SpatialScale},
     log::{Level, LogPlugin},
     prelude::*,
-    window::WindowMode,
 };
 use bevy_aseprite_ultra::prelude::*;
 // use bevy_fps_counter::FpsCounterPlugin;
 use bevy_quinnet::client::QuinnetClientPlugin;
 use bevy_webserver::{BevyWebServerPlugin, RouterAppExt, WebServerConfig};
 use proof_of_duel_game::{
-    AUDIO_SCALE, GameState, cameras,
-    civic_auth::{self, AuthFileWatcher},
+    AUDIO_SCALE, GameState, LoggedInState, cameras,
+    civic_auth::{self, AuthStateWatcher},
     connection::{self, ConnectionState, IsConnected},
     player::{self, PlayerHertsStatus, PlayerHit, PlayerSelection, PlayersCounting, ShootingLock},
     scene,
     shooting::{self, CheckShootingKeyEvent, ResetKeysEvent, ShootingEvent, ShootingStates},
     sounds,
-    stats::{self, StatsData, StatsFileWatcher},
+    stats::{self, StatsData, StatsStateWatcher},
     ui::{
         self,
         game_over::WhoIsWinner,
@@ -33,7 +29,7 @@ use proof_of_duel_game::{
         profile::ProfileData,
     },
 };
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 
 fn main() {
     App::new()
@@ -50,8 +46,8 @@ fn main() {
         .insert_resource(IsHost::default())
         .insert_resource(IsConnected::default())
         .insert_resource(ProfileData::default())
-        .insert_resource(AuthFileWatcher::default())
-        .insert_resource(StatsFileWatcher::default())
+        .insert_resource(AuthStateWatcher::default())
+        .insert_resource(StatsStateWatcher::default())
         .insert_resource(StatsData::default())
         .insert_resource(WebServerConfig {
             port: 8080,
@@ -69,7 +65,6 @@ fn main() {
                         max_width: 1920.,
                         max_height: 1080.,
                     },
-                    mode: WindowMode::BorderlessFullscreen(MonitorSelection::Primary),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -87,8 +82,13 @@ fn main() {
         .add_plugins(QuinnetClientPlugin::default())
         .add_plugins(BevyWebServerPlugin)
         .route("/login", post(civic_auth::login))
+        .route("/update-stats", post(stats::update_stats))
         .layer(
             CorsLayer::new()
+                .allow_origin([
+                    "http://localhost:3000".parse::<HeaderValue>().unwrap(),
+                    "http://127.0.0.1:3000".parse::<HeaderValue>().unwrap(),
+                ])
                 .allow_methods([
                     Method::GET,
                     Method::POST,
@@ -96,13 +96,14 @@ fn main() {
                     Method::PATCH,
                     Method::DELETE,
                 ])
-                .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
-                .allow_credentials(true)
-                .allow_headers([ACCEPT, CONTENT_TYPE]),
+                .allow_headers(Any)
+                .expose_headers(Any)
+                .allow_credentials(false),
         )
         .init_state::<GameState>()
         .init_state::<MainMenuState>()
         .init_state::<ConnectionState>()
+        .init_state::<LoggedInState>()
         .add_event::<MatchNotFoundError>()
         .add_event::<ShootingEvent>()
         .add_event::<ResetKeysEvent>()
@@ -112,9 +113,11 @@ fn main() {
         .add_systems(
             Update,
             (
-                civic_auth::poll_auth_file,
-                stats::poll_stats_file,
+                civic_auth::poll_auth_state,
+                stats::get_stats_scheduler,
                 ui::profile::update_username,
+                stats::poll_stats_state,
+                stats::get_stats_scheduler,
                 ui::profile::update_win,
                 ui::profile::update_loss,
             ),
@@ -122,11 +125,26 @@ fn main() {
         .add_systems(
             OnEnter(MainMenuState::MainMenu),
             (
-                ui::main_menu::spawn_main_menu,
                 ui::join_game::reset_is_host,
                 cameras::main_menu_camera_setup,
                 connection::disconnect,
             ),
+        )
+        .add_systems(
+            OnEnter(LoggedInState::NotLoggedIn),
+            ui::main_menu::spawn_main_menu_before_logged_in,
+        )
+        .add_systems(
+            OnExit(LoggedInState::NotLoggedIn),
+            ui::main_menu::despawn_main_menu,
+        )
+        .add_systems(
+            OnEnter(LoggedInState::LoggedIn),
+            ui::main_menu::spawn_main_menu_after_logged_in,
+        )
+        .add_systems(
+            OnExit(LoggedInState::LoggedIn),
+            ui::main_menu::despawn_main_menu,
         )
         .add_systems(
             Update,

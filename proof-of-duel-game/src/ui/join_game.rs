@@ -4,8 +4,8 @@ use bevy_quinnet::client::QuinnetClient;
 use uuid::Uuid;
 
 use crate::{
-    ClientChannel, ClientMessage, GameState, connection::ConnectionState, player::PlayerSelection,
-    ui::main_menu::MainMenuState,
+    ClientChannel, ClientMessage, GameState, LoggedInState, connection::ConnectionState,
+    player::PlayerSelection, ui::main_menu::MainMenuState,
 };
 
 #[derive(Component)]
@@ -342,6 +342,7 @@ pub fn join_game_button_pressed_handler(
     mut player_selection: ResMut<PlayerSelection>,
     mut buffer: ResMut<MatchIdInput>,
     mut client: ResMut<QuinnetClient>,
+    mut next_logged_in_state: ResMut<NextState<LoggedInState>>,
 ) {
     for (interaction, name) in button_query.iter() {
         if *interaction != Interaction::Pressed {
@@ -365,6 +366,7 @@ pub fn join_game_button_pressed_handler(
                 player_selection.1 = match_id;
 
                 next_main_menu_state.set(MainMenuState::PlayNow);
+                next_logged_in_state.set(LoggedInState::InGame);
             }
             "Back" => {
                 connection_state.set(ConnectionState::Idle);
@@ -374,6 +376,7 @@ pub fn join_game_button_pressed_handler(
 
                 next_main_menu_state.set(MainMenuState::MainMenu);
                 next_game_state.set(GameState::MainMenu);
+                next_logged_in_state.set(LoggedInState::LoggedIn);
             }
             _ => return,
         }

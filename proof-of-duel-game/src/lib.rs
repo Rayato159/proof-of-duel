@@ -35,6 +35,14 @@ pub enum GameState {
     GameOver,
 }
 
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum LoggedInState {
+    #[default]
+    NotLoggedIn,
+    LoggedIn,
+    InGame,
+}
+
 #[repr(u8)]
 pub enum ServerChannel {
     Lobby,

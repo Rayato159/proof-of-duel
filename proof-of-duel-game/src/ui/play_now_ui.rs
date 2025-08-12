@@ -4,7 +4,7 @@ use bevy_quinnet::client::QuinnetClient;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ClientChannel, ClientMessage, GameState,
+    ClientChannel, ClientMessage, GameState, LoggedInState,
     connection::ConnectionState,
     player::{PlayerSelection, PlayersCounting},
     ui::{join_game::IsHost, main_menu::MainMenuState},
@@ -264,6 +264,7 @@ pub fn play_now_button_pressed_handler(
     mut next_main_menu_state: ResMut<NextState<MainMenuState>>,
     mut connection_state: ResMut<NextState<ConnectionState>>,
     mut player_selection: ResMut<PlayerSelection>,
+    mut next_logged_in_state: ResMut<NextState<LoggedInState>>,
 ) {
     for (interaction, name) in button_query.iter() {
         if *interaction != Interaction::Pressed {
@@ -283,6 +284,7 @@ pub fn play_now_button_pressed_handler(
 
                 next_main_menu_state.set(MainMenuState::MainMenu);
                 next_game_state.set(GameState::MainMenu);
+                next_logged_in_state.set(LoggedInState::LoggedIn);
             }
             _ => return,
         }
