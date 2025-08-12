@@ -137,3 +137,7 @@ This project is licensed under the MIT License. See the [LICENSE](./LICENSE) fil
 ## 👀 Game Design Document
 
 For a detailed game design document, see [ProofOfDuelGDD.pdf](./ProofOfDuelGDD.pdf).
+
+---
+
+Important: This project is in development process, no NFTs or coins are currently available. Beware of scammer.
